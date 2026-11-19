@@ -4,6 +4,17 @@
 
 需求文档：[酒馆角色卡编辑器 · 需求文档](https://claude.ai/artifact/E4Mw4NXB232hwg4EmWXWpQ)
 
+## 功能（第一版）
+
+- **卡库**：网格/列表视图、搜索排序、本地标签与备注、复制、批量导出（zip）/删除/打标签、同名卡导入时选择新卡/覆盖/跳过、备份提醒
+- **导入导出**：PNG（读 ccv3 优先、损坏时回退 chara）、JSON、CharX；拖拽或多选导入；导出 PNG 同时写 V2 和 V3；未知字段原样保留
+- **角色编辑**：所有字段一页，带字段说明、宏高亮、XML 标签折叠、全屏编辑、token 估算；开场白拖拽排序、设为主开场白、聊天气泡预览、HTML 模式；角色注释、群聊发言频率、其他扩展数据（JSON）
+- **快捷修改**：改名向导（自动识别中英日韩名）、全卡查找替换（支持正则），逐条确认，整批一键撤销
+- **世界书**：条目列表（筛选、排序、拖拽调整显示顺序）、设置与内容同屏、完整高级设置、批量修改、条目模板、包裹标签助手、自动检查、提示词组装预览、导入/导出 ST 世界书 JSON
+- **世界书库**：独立的世界书，可在卡之间合并、复制条目
+- **正则脚本**：编辑、实时测试（与 ST 同一套执行逻辑）、导入导出
+- **通用**：自动保存、撤销/重做（Ctrl+Z / Ctrl+Y）、手机适配、整库备份恢复、PWA 离线、快捷键（世界书里 `/` 搜索、↑↓ 切换、Alt+N 新建）
+
 ## 开发
 
 ```bash
@@ -12,8 +23,10 @@ npm run dev        # 本地开发，http://localhost:5173
 npm test           # 单元测试（含样本卡往返测试）
 npm run typecheck  # 类型检查
 npm run lint       # 代码检查（oxlint）
-npm run build      # 打包到 dist/
+npm run build      # 打包到 dist/，可直接部署到任意静态托管
 ```
+
+重新生成 PWA 图标：`node scripts/gen-icons.mjs`
 
 ## 目录
 
@@ -21,12 +34,19 @@ npm run build      # 打包到 dist/
 | --- | --- |
 | `src/core/` | 核心逻辑，纯 TypeScript，不依赖浏览器 API，可单独测试 |
 | `src/core/png/` | PNG 块读写（tEXt、CRC32） |
-| `src/core/card/` | 角色卡类型定义、导入导出（V1/V2/V3 统一转 V3） |
-| `src/components/ui/` | shadcn/ui 组件 |
+| `src/core/card/` | 卡片类型、导入导出、CharX、新建模板、顶层镜像字段同步 |
+| `src/core/lorebook/` | 世界书条目读写、ST 世界书格式转换、提示词组装、自动检查 |
+| `src/core/regex/` | 正则脚本执行（对照 ST 源码） |
+| `src/core/search/` | 全卡查找替换、改名候选识别 |
+| `src/db/` | IndexedDB（Dexie） |
+| `src/services/` | 卡库、世界书库、备份 |
+| `src/features/` | 各页面：卡库、角色编辑、世界书、正则、快捷修改、预览、世界书库、设置 |
+| `src/components/` | 通用组件（文本编辑器、标签输入、裁剪等）和 shadcn/ui |
 | `tests/` | Vitest 测试 |
 | `samples/` | 测试用样本卡 |
 
 ## 约定
 
 - 无损往返：整张卡原样保存，未知字段全部保留；导出 PNG 同时写 `chara`（V2 标识）和 `ccv3`（V3）。
+- 世界书条目在编辑器里用独立的 key 标识（不写进卡），避免删除后错位。
 - `src/core/` 只能用浏览器和 Node 都有的 API，由 `tsconfig.test.json`（不含 DOM 类型）保证。
