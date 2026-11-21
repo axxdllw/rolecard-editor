@@ -2,12 +2,26 @@
  * 提示词组装预览：按 ST（Chat Completion 默认顺序）模拟世界书条目插入的位置。
  *
  * 同一位置内按 insertion_order 从小到大排，越大越靠后；
- * @depth 条目按（深度，消息角色）分组插进聊天记录。
+ * @depth 条目按（深度，消息角色）分组插进聊天记录；
+ * 锚点（outlet）条目不进固定位置，按锚点名收集，由预设里的 {{outlet::名}} 取出。
  */
 import type { CharacterCardV3, JsonObject, Lorebook, LorebookEntry } from '../card/types'
-import { substituteMacros, type MacroContext } from '../macros'
+import { findOutletRefs, substituteMacros, type MacroContext } from '../macros'
 import { regexFromString } from '../regex/regex'
-import { entryTitle, getDepth, getOrder, getPosition, getRole, getSelectiveLogic, getStrategy, isRegexKey, readEntrySettings, ROLE_OPTIONS } from './entry'
+import {
+  entryTitle,
+  getDepth,
+  getOrder,
+  getOutletName,
+  getPosition,
+  getRole,
+  getSelectiveLogic,
+  getStrategy,
+  isRegexKey,
+  POSITION,
+  readEntrySettings,
+  ROLE_OPTIONS,
+} from './entry'
 
 /** constant：只看常驻；all：把所有关键词条目当作已触发；match：用测试文本匹配关键词 */
 export type ActivationMode = 'constant' | 'all' | 'match'
@@ -104,8 +118,13 @@ function sortByOrder(list: ActiveEntry[]): ActiveEntry[] {
   return [...list].sort((a, b) => getOrder(a.entry) - getOrder(b.entry) || a.index - b.index)
 }
 
-function toBlocks(list: ActiveEntry[], macros: MacroContext): AssembledBlock[] {
-  return sortByOrder(list).map(({ entry, index, source }) => ({
+/** 锚点里的顺序：ST 1.16 先按顺序从大到小排，再依次 push 进锚点，所以和其他位置相反，大的在前 */
+function sortByOrderDesc(list: ActiveEntry[]): ActiveEntry[] {
+  return [...list].sort((a, b) => getOrder(b.entry) - getOrder(a.entry) || a.index - b.index)
+}
+
+function toBlocks(list: ActiveEntry[], macros: MacroContext, sort: (list: ActiveEntry[]) => ActiveEntry[] = sortByOrder): AssembledBlock[] {
+  return sort(list).map(({ entry, index, source }) => ({
     title: entryTitle(entry, index),
     content: substituteMacros(entry.content ?? '', macros),
     kind: source,
@@ -113,9 +132,38 @@ function toBlocks(list: ActiveEntry[], macros: MacroContext): AssembledBlock[] {
   }))
 }
 
+/**
+ * 卡片字段里的 {{outlet::名}} 拿不到本轮的锚点内容：ST 在 Generate 开头就替换了卡片字段里的宏，
+ * 之后才激活世界书、写入锚点（每轮生成结束还会清空）。预览里保留原文，并在后面加一条说明。
+ */
+function outletRefNote(text: string): AssembledBlock[] {
+  const refs = findOutletRefs(text)
+  if (refs.length === 0) return []
+  const macros = refs.map((name) => `{{outlet::${name}}}`).join('、')
+  return [
+    {
+      title: `↑ 这里的 ${macros} 在酒馆里拿不到本轮的锚点内容（卡片字段的宏在世界书激活之前就替换了），锚点宏要写在预设的提示词里`,
+      content: '',
+      kind: 'note',
+    },
+  ]
+}
+
 function cardBlock(title: string, text: unknown, macros: MacroContext): AssembledBlock[] {
   if (typeof text !== 'string' || !text.trim()) return []
-  return [{ title, content: substituteMacros(text, macros), kind: 'card' }]
+  return [{ title, content: substituteMacros(text, macros), kind: 'card' }, ...outletRefNote(text)]
+}
+
+/** 激活的锚点条目按锚点名分组（按首次出现的顺序）；ST 会跳过没填锚点名的条目 */
+function outletGroups(active: ActiveEntry[]): Array<{ name: string; items: ActiveEntry[] }> {
+  const groups = new Map<string, ActiveEntry[]>()
+  for (const a of active) {
+    if (getPosition(a.entry) !== POSITION.OUTLET) continue
+    const name = getOutletName(a.entry)
+    if (!name) continue
+    groups.set(name, [...(groups.get(name) ?? []), a])
+  }
+  return [...groups].map(([name, items]) => ({ name, items }))
 }
 
 export function assemblePrompt(card: CharacterCardV3, options: AssembleOptions): AssembledSection[] {
@@ -181,6 +229,7 @@ export function assemblePrompt(card: CharacterCardV3, options: AssembleOptions):
     const depth = typeof depthPrompt.depth === 'number' ? depthPrompt.depth : 4
     const role = typeof depthPrompt.role === 'string' ? depthPrompt.role : 'system'
     chatBlocks.push({ title: `角色注释 · 深度 ${depth} · ${role}`, content: substituteMacros(notePrompt, macros), kind: 'card' })
+    chatBlocks.push(...outletRefNote(notePrompt))
   }
   const anTop = at(2)
   const anBottom = at(3)
@@ -201,6 +250,16 @@ export function assemblePrompt(card: CharacterCardV3, options: AssembleOptions):
     id: 'post-history',
     title: '历史后指令（角色卡覆盖）',
     blocks: cardBlock('post_history_instructions', data.post_history_instructions, macros),
+  })
+
+  push({
+    id: 'wi-outlet',
+    title: '世界书 · 锚点（outlet）',
+    hint: '不会自动插入，在预设的提示词里写 {{outlet::锚点名}} 的地方展开。同一锚点里顺序大的在前（与其他位置相反，按酒馆 1.16 的实际拼接）',
+    blocks: outletGroups(active).flatMap(({ name, items }) => [
+      { title: `{{outlet::${name}}}`, content: '', kind: 'note' as const },
+      ...toBlocks(items, macros, sortByOrderDesc),
+    ]),
   })
 
   return sections

@@ -6,7 +6,7 @@ import { memo, useEffect, useRef } from 'react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import type { LorebookEntry } from '@/core/card/types'
-import { entryTitle, getDepth, getOrder, getPosition, getStrategy, POSITION_OPTIONS } from '@/core/lorebook/entry'
+import { entryTitle, getDepth, getOrder, getOutletName, getPosition, getStrategy, POSITION_OPTIONS } from '@/core/lorebook/entry'
 import { cachedTokens, formatTokens, useTokenizerReady } from '@/lib/tokens'
 import { cn } from '@/lib/utils'
 
@@ -96,9 +96,10 @@ const EntryRow = memo(function EntryRow({ row, active, checked, batch, sortable,
           {strategy === 'constant' ? '常驻' : keys.length ? keys.join('、') : '（无关键词）'}
         </span>
       </div>
-      <span className="hidden shrink-0 text-xs text-muted-foreground sm:block">
+      <span className="hidden max-w-32 shrink-0 truncate text-xs text-muted-foreground sm:block">
         {posLabel}
         {position === 4 ? ` ${getDepth(entry)}` : ''}
+        {position === 7 ? ` ${getOutletName(entry) || '（未命名）'}` : ''}
       </span>
       <span className="w-9 shrink-0 text-right text-xs tabular-nums text-muted-foreground" title="顺序">
         {getOrder(entry)}

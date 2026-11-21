@@ -15,6 +15,7 @@ export const POSITION = {
   AT_DEPTH: 4,
   EM_TOP: 5,
   EM_BOTTOM: 6,
+  OUTLET: 7,
 } as const
 
 export const POSITION_OPTIONS: Array<{ value: number; label: string; short: string; hint: string }> = [
@@ -25,6 +26,7 @@ export const POSITION_OPTIONS: Array<{ value: number; label: string; short: stri
   { value: 4, label: '指定深度', short: '@深度', hint: '插进聊天记录，深度 0 表示最新消息之后' },
   { value: 5, label: '示例对话前', short: '↑示例', hint: '插在示例对话之前' },
   { value: 6, label: '示例对话后', short: '↓示例', hint: '插在示例对话之后' },
+  { value: 7, label: '锚点（outlet）', short: '⚓锚点', hint: '不自动插入，按锚点名收集，在预设提示词里写 {{outlet::锚点名}} 的地方展开（酒馆 1.16 起）' },
 ]
 
 export const ROLE_OPTIONS = [
@@ -66,6 +68,22 @@ export function getPosition(entry: LorebookEntry): number {
   const p = extOf(entry).position
   if (typeof p === 'number') return p
   return entry.position === 'after_char' ? 1 : 0
+}
+
+/** 锚点（outlet）名，卡内存在 extensions.outlet_name，ST 世界书里是 outletName */
+export function getOutletName(entry: LorebookEntry): string {
+  const name = extOf(entry).outlet_name
+  return typeof name === 'string' ? name : ''
+}
+
+/** 世界书里已有的锚点名（去重排序），供输入时自动补全；同 ST 只收集位置是锚点的条目 */
+export function collectOutletNames(entries: LorebookEntry[]): string[] {
+  const names = new Set<string>()
+  for (const e of entries) {
+    const name = getOutletName(e)
+    if (getPosition(e) === POSITION.OUTLET && name) names.add(name)
+  }
+  return [...names].sort((a, b) => a.localeCompare(b, 'zh'))
 }
 
 export function getDepth(entry: LorebookEntry): number {
@@ -127,10 +145,14 @@ export function setExt(entry: LorebookEntry, key: string, value: unknown): void 
   entry.extensions[key] = value
 }
 
-/** 改位置，同时同步规范里的 position 字符串（ST 的规则：0 为 before_char，其余为 after_char） */
+/** 改位置，同时同步规范里的 position 字符串（ST 的规则：0 为 before_char，其余为 after_char，锚点 7 也是 after_char） */
 export function setPosition(entry: LorebookEntry, position: number): void {
   setExt(entry, 'position', position)
   entry.position = position === 0 ? 'before_char' : 'after_char'
+}
+
+export function setOutletName(entry: LorebookEntry, name: string): void {
+  setExt(entry, 'outlet_name', name)
 }
 
 export function setStrategy(entry: LorebookEntry, strategy: EntryStrategy): void {
@@ -181,6 +203,7 @@ export interface NewEntryInit {
   position?: number
   depth?: number
   order?: number
+  outletName?: string
 }
 
 /** 新建条目，字段与 ST 导出的结构一致 */
@@ -206,6 +229,7 @@ export function createEntry(entries: LorebookEntry[], init: NewEntryInit = {}): 
       useProbability: true,
       depth: init.depth ?? 4,
       selectiveLogic: 0,
+      outlet_name: init.outletName ?? '',
       group: '',
       group_override: false,
       group_weight: 100,

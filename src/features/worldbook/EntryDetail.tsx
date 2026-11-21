@@ -14,6 +14,7 @@ import type { LorebookEntry } from '@/core/card/types'
 import {
   getDepth,
   getOrder,
+  getOutletName,
   getPosition,
   getRole,
   getSelectiveLogic,
@@ -25,6 +26,7 @@ import {
   ROLE_OPTIONS,
   setCaseSensitive,
   setExt,
+  setOutletName,
   setPosition,
   setStrategy,
   type EntryStrategy,
@@ -32,6 +34,7 @@ import {
 import { FieldLabel, TokenBadge } from '@/features/editor/fields'
 import type { UpdateOptions } from '@/features/editor/docStore'
 import { cn } from '@/lib/utils'
+import { OutletNameInput } from './OutletNameInput'
 
 const EMPTY: string[] = []
 
@@ -42,6 +45,8 @@ interface EntryDetailProps {
   onDelete: () => void
   onDuplicate: () => void
   extraActions?: ReactNode
+  /** 世界书里已有的锚点名，填锚点名时自动补全 */
+  outletNames?: string[]
 }
 
 function numOrNull(raw: string): number | null {
@@ -75,7 +80,7 @@ const MATCH_SOURCES: Array<[string, string]> = [
   ['match_creator_notes', '创作者备注'],
 ]
 
-export function EntryDetail({ entry, entryKey, onEdit, onDelete, onDuplicate, extraActions }: EntryDetailProps) {
+export function EntryDetail({ entry, entryKey, onEdit, onDelete, onDuplicate, extraActions, outletNames = EMPTY }: EntryDetailProps) {
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const strategy = getStrategy(entry)
   const position = getPosition(entry)
@@ -173,8 +178,18 @@ export function EntryDetail({ entry, entryKey, onEdit, onDelete, onDuplicate, ex
             </div>
           </>
         )}
+        {position === 7 && (
+          <div className="flex w-44 flex-col gap-1.5">
+            <FieldLabel label="锚点名" hint="在预设的提示词里写 {{outlet::锚点名}} 引用，同名的条目会拼在一起。区分大小写" />
+            <OutletNameInput
+              names={outletNames}
+              value={getOutletName(entry)}
+              onChange={(e) => edit('修改锚点名', (x) => setOutletName(x, e.target.value), 'outlet_name')}
+            />
+          </div>
+        )}
         <div className="flex w-24 flex-col gap-1.5">
-          <FieldLabel label="顺序" hint="同一位置里数字越大越靠后、离最新消息越近" />
+          <FieldLabel label="顺序" hint={position === 7 ? '同一锚点里数字越大越靠前（酒馆 1.16 的实际拼接顺序，与其他位置相反）' : '同一位置里数字越大越靠后、离最新消息越近'} />
           <Input type="number" value={getOrder(entry)} onChange={(e) => edit('修改顺序', (x) => void (x.insertion_order = Number(e.target.value) || 0), 'order')} />
         </div>
         <div className="flex w-36 flex-col gap-1.5">

@@ -12,7 +12,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { LorebookEntry } from '@/core/card/types'
-import { POSITION_OPTIONS, setExt, setPosition, setStrategy } from '@/core/lorebook/entry'
+import { POSITION_OPTIONS, setExt, setOutletName, setPosition, setStrategy } from '@/core/lorebook/entry'
+import { OutletNameInput } from './OutletNameInput'
 
 interface BatchBarProps {
   count: number
@@ -22,13 +23,16 @@ interface BatchBarProps {
   onClear: () => void
   onExit: () => void
   extra?: React.ReactNode
+  /** 世界书里已有的锚点名，批量改为锚点时自动补全 */
+  outletNames?: string[]
 }
 
 /** 批量修改条目 */
-export function BatchBar({ count, onEdit, onDelete, onSelectAll, onClear, onExit, extra }: BatchBarProps) {
+export function BatchBar({ count, onEdit, onDelete, onSelectAll, onClear, onExit, extra, outletNames = [] }: BatchBarProps) {
   const [order, setOrder] = useState('100')
   const [offset, setOffset] = useState('1')
   const [depth, setDepth] = useState('4')
+  const [outlet, setOutlet] = useState('')
   const disabled = count === 0
 
   return (
@@ -73,6 +77,10 @@ export function BatchBar({ count, onEdit, onDelete, onSelectAll, onClear, onExit
             指定深度时用：
             <Input className="h-7 w-16" type="number" value={depth} onChange={(e) => setDepth(e.target.value)} />
           </div>
+          <div className="flex items-center gap-2 px-1 pb-1 text-xs text-muted-foreground">
+            锚点时用：
+            <OutletNameInput className="h-7 w-24" names={outletNames} placeholder="不改" value={outlet} onChange={(e) => setOutlet(e.target.value)} />
+          </div>
           {POSITION_OPTIONS.map((p) => (
             <Button
               key={p.value}
@@ -83,6 +91,7 @@ export function BatchBar({ count, onEdit, onDelete, onSelectAll, onClear, onExit
                 onEdit(`批量改为${p.label}`, (e) => {
                   setPosition(e, p.value)
                   if (p.value === 4) setExt(e, 'depth', Number(depth) || 0)
+                  if (p.value === 7 && outlet.trim()) setOutletName(e, outlet.trim())
                 })
               }
             >

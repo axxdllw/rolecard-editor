@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { POSITION_OPTIONS } from '@/core/lorebook/entry'
 import { db, type LorebookRecord } from '@/db/db'
 import { useLive } from '@/db/useLive'
+import { OutletNameInput } from './OutletNameInput'
 
 export interface WrapperOptions {
   tag: string
@@ -14,15 +15,37 @@ export interface WrapperOptions {
   depth: number
   openOrder: number
   closeOrder: number
+  outletName: string
 }
 
 /** 包裹标签助手：生成一对常驻的开/收标签条目 */
-export function WrapperDialog({ open, onOpenChange, onCreate }: { open: boolean; onOpenChange: (open: boolean) => void; onCreate: (o: WrapperOptions) => void }) {
+export function WrapperDialog({
+  open,
+  onOpenChange,
+  onCreate,
+  outletNames = [],
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onCreate: (o: WrapperOptions) => void
+  outletNames?: string[]
+}) {
   const [tag, setTag] = useState('')
   const [position, setPosition] = useState(0)
   const [depth, setDepth] = useState(4)
   const [openOrder, setOpenOrder] = useState(0)
   const [closeOrder, setCloseOrder] = useState(999)
+  const [outletName, setOutletName] = useState('')
+  const isOutlet = position === 7
+
+  // 锚点里顺序大的在前，切进/切出锚点时把开收标签的顺序对调
+  const changePosition = (next: number) => {
+    if ((next === 7) !== isOutlet) {
+      setOpenOrder(closeOrder)
+      setCloseOrder(openOrder)
+    }
+    setPosition(next)
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -31,6 +54,7 @@ export function WrapperDialog({ open, onOpenChange, onCreate }: { open: boolean;
           <DialogTitle>添加包裹标签</DialogTitle>
           <DialogDescription>
             生成两个常驻条目：开标签（顺序 {openOrder}）和收标签（顺序 {closeOrder}）。同一位置里顺序在两者之间的条目会被包在标签里，方便模型区分内容。
+            {isOutlet && '锚点里顺序大的排在前面，所以开标签的顺序要比收标签大。'}
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3">
@@ -41,7 +65,7 @@ export function WrapperDialog({ open, onOpenChange, onCreate }: { open: boolean;
           <div className="flex flex-wrap gap-3">
             <div className="flex flex-col gap-1.5">
               <Label>位置</Label>
-              <Select value={String(position)} onValueChange={(v) => setPosition(Number(v))}>
+              <Select value={String(position)} onValueChange={(v) => changePosition(Number(v))}>
                 <SelectTrigger className="w-36">
                   <SelectValue />
                 </SelectTrigger>
@@ -60,6 +84,12 @@ export function WrapperDialog({ open, onOpenChange, onCreate }: { open: boolean;
                 <Input type="number" value={depth} onChange={(e) => setDepth(Number(e.target.value) || 0)} />
               </div>
             )}
+            {isOutlet && (
+              <div className="flex w-36 flex-col gap-1.5">
+                <Label>锚点名</Label>
+                <OutletNameInput names={outletNames} value={outletName} onChange={(e) => setOutletName(e.target.value)} />
+              </div>
+            )}
             <div className="flex w-20 flex-col gap-1.5">
               <Label>开标签顺序</Label>
               <Input type="number" value={openOrder} onChange={(e) => setOpenOrder(Number(e.target.value) || 0)} />
@@ -75,9 +105,9 @@ export function WrapperDialog({ open, onOpenChange, onCreate }: { open: boolean;
             取消
           </Button>
           <Button
-            disabled={!tag.trim()}
+            disabled={!tag.trim() || (isOutlet && !outletName.trim())}
             onClick={() => {
-              onCreate({ tag: tag.trim(), position, depth, openOrder, closeOrder })
+              onCreate({ tag: tag.trim(), position, depth, openOrder, closeOrder, outletName: isOutlet ? outletName.trim() : '' })
               onOpenChange(false)
               setTag('')
             }}

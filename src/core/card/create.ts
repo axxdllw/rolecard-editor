@@ -185,11 +185,12 @@ export const ENTRY_TEMPLATES: EntryTemplate[] = [
 /**
  * 生成一对包裹标签条目：开标签（顺序 openOrder）和收标签（顺序 closeOrder），都是常驻。
  * 两者位置相同，夹在中间顺序、同一位置的条目会被包起来。
+ * 锚点（outlet）里顺序大的在前，开标签的顺序要比收标签大，由调用方传入。
  */
 export function createWrapperEntries(
   entries: LorebookEntry[],
   tag: string,
-  options: { position: number; depth?: number; openOrder?: number; closeOrder?: number },
+  options: { position: number; depth?: number; openOrder?: number; closeOrder?: number; outletName?: string },
 ): [LorebookEntry, LorebookEntry] {
   const clean = tag.replace(/^<\/?|>$/g, '').trim()
   const open = createEntry(entries, {
@@ -199,6 +200,7 @@ export function createWrapperEntries(
     position: options.position,
     depth: options.depth,
     order: options.openOrder ?? 0,
+    outletName: options.outletName,
   })
   const close = createEntry([...entries, open], {
     comment: `</${clean}> 结束`,
@@ -207,6 +209,7 @@ export function createWrapperEntries(
     position: options.position,
     depth: options.depth,
     order: options.closeOrder ?? 999,
+    outletName: options.outletName,
   })
   return [open, close]
 }

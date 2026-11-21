@@ -18,6 +18,8 @@ export interface WorldEntry {
   vectorized: boolean
   selective: boolean
   selectiveLogic: number
+  /** 锚点名（位置为 7 时使用），对应卡内的 extensions.outlet_name */
+  outletName: string
   addMemo: boolean
   order: number
   position: number
@@ -80,6 +82,7 @@ export function lorebookToWorld(book: Lorebook): WorldJson {
       vectorized: ext.vectorized === true,
       selective: entry.selective === true,
       selectiveLogic: typeof ext.selectiveLogic === 'number' ? ext.selectiveLogic : 0,
+      outletName: typeof ext.outlet_name === 'string' ? ext.outlet_name : '',
       addMemo: !!entry.comment,
       order: typeof entry.insertion_order === 'number' ? entry.insertion_order : 100,
       position,
@@ -143,6 +146,7 @@ function worldEntryToBookEntry(entry: JsonObject, index: number): LorebookEntry 
       useProbability: pick(entry.useProbability, true),
       depth: pick(entry.depth, 4),
       selectiveLogic: pick(entry.selectiveLogic, 0),
+      outlet_name: pick(entry.outletName, ext.outlet_name ?? ''),
       group: pick(entry.group, ''),
       group_override: pick(entry.groupOverride, false),
       group_weight: pick(entry.groupWeight, 100),

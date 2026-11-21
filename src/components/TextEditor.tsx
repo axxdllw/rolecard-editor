@@ -8,10 +8,12 @@ import { Maximize2Icon } from 'lucide-react'
 import { memo, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { OUTLET_MACRO_PATTERN } from '@/core/macros'
 import { cn } from '@/lib/utils'
 
-function highlighter(regexp: RegExp, className: string) {
-  const matcher = new MatchDecorator({ regexp, decoration: Decoration.mark({ class: className }) })
+function highlighter(regexp: RegExp, className: string | ((match: RegExpExecArray) => Decoration)) {
+  const decoration = typeof className === 'string' ? Decoration.mark({ class: className }) : className
+  const matcher = new MatchDecorator({ regexp, decoration })
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet
@@ -26,8 +28,18 @@ function highlighter(regexp: RegExp, className: string) {
   )
 }
 
-/** {{char}}、{{user}} 等宏 */
-const macroHighlight = highlighter(/\{\{[^{}\n]*\}\}/g, 'cm-macro')
+const plainMacro = Decoration.mark({ class: 'cm-macro' })
+const OUTLET_EXACT = new RegExp(`^${OUTLET_MACRO_PATTERN.source}$`, 'i')
+
+/** {{char}}、{{user}} 等宏；{{outlet::名}} 单独着色，悬停显示说明 */
+const macroHighlight = highlighter(/\{\{[^{}\n]*\}\}/g, (match) => {
+  const outlet = OUTLET_EXACT.exec(match[0])
+  if (!outlet) return plainMacro
+  return Decoration.mark({
+    class: 'cm-macro cm-macro-outlet',
+    attributes: { title: `锚点宏：在预设里展开锚点「${outlet[1].trim()}」本轮激活的世界书条目` },
+  })
+})
 /** 纯文本里的 XML 风格标签，如 <char>、</Glossary> */
 const tagHighlight = highlighter(/<\/?[^\s<>!/][^<>\n]{0,80}>/g, 'cm-xmltag')
 
@@ -54,6 +66,7 @@ const baseTheme = EditorView.theme({
   '&.cm-focused': { outline: 'none' },
   '.cm-gutters': { backgroundColor: 'transparent', border: 'none' },
   '.cm-macro': { color: 'var(--color-violet-600, #7c3aed)', backgroundColor: 'rgba(124,58,237,0.08)', borderRadius: '3px' },
+  '.cm-macro-outlet': { color: 'var(--color-teal-600, #0d9488)', backgroundColor: 'rgba(13,148,136,0.1)' },
   '.cm-xmltag': { color: 'var(--color-sky-700, #0369a1)' },
   '.cm-placeholder': { color: 'var(--muted-foreground)' },
 })

@@ -27,7 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { createWrapperEntries, ENTRY_TEMPLATES } from '@/core/card/create'
 import type { Lorebook, LorebookEntry } from '@/core/card/types'
-import { createEntry, entryTitle, getDisplayIndex, getOrder, getPosition, getStrategy, POSITION_OPTIONS } from '@/core/lorebook/entry'
+import { collectOutletNames, createEntry, entryTitle, getDisplayIndex, getOrder, getPosition, getStrategy, POSITION_OPTIONS } from '@/core/lorebook/entry'
 import { lintLorebook, type LintIssue } from '@/core/lorebook/lint'
 import { parseLorebookJson } from '@/core/lorebook/world'
 import type { BookDraft } from '@/features/editor/cardDoc'
@@ -74,6 +74,7 @@ export function WorldbookEditor({ book, keys, update, mode, libraryId, headerExt
   const [copyKeys, setCopyKeys] = useState<string[] | null>(null)
 
   const entries = useMemo(() => book?.entries ?? [], [book])
+  const outletNames = useMemo(() => collectOutletNames(entries), [entries])
 
   const issues = useMemo(
     () => lintLorebook(book, { constantTokenBudget: budget, tokenCount: tokenizerReady ? countTokensSync : undefined }),
@@ -82,7 +83,7 @@ export function WorldbookEditor({ book, keys, update, mode, libraryId, headerExt
   const issueKeys = useMemo(() => {
     const set = new Set<string>()
     for (const issue of issues) {
-      if (issue.code === 'duplicate-key' || issue.code === 'constant-budget') continue
+      if (issue.code === 'duplicate-key' || issue.code === 'constant-budget' || issue.code === 'outlet-usage') continue
       issue.entryIndexes.forEach((i) => keys[i] && set.add(keys[i]))
     }
     return set
@@ -235,6 +236,7 @@ export function WorldbookEditor({ book, keys, update, mode, libraryId, headerExt
       entryKey={activeKey}
       onEdit={onEditActive}
       onDelete={() => removeKeys([activeKey])}
+      outletNames={outletNames}
       onDuplicate={() => {
         let newKey: string | null = null
         update((d) => void (newKey = duplicateEntry(d, activeKey)), { label: '复制条目' })
@@ -385,6 +387,7 @@ export function WorldbookEditor({ book, keys, update, mode, libraryId, headerExt
           {batch && (
             <BatchBar
               count={checked.size}
+              outletNames={outletNames}
               onEdit={(label, edit) => update((d) => editEntries(d, checked, edit), { label })}
               onDelete={() => removeKeys([...checked])}
               onSelectAll={() => setChecked(new Set(rows.map((r) => r.key)))}
@@ -469,6 +472,7 @@ export function WorldbookEditor({ book, keys, update, mode, libraryId, headerExt
       <WrapperDialog
         open={wrapperOpen}
         onOpenChange={setWrapperOpen}
+        outletNames={outletNames}
         onCreate={(o) => {
           update((d) => {
             const [open, close] = createWrapperEntries(d.book.entries as LorebookEntry[], o.tag, {
@@ -476,6 +480,7 @@ export function WorldbookEditor({ book, keys, update, mode, libraryId, headerExt
               depth: o.depth,
               openOrder: o.openOrder,
               closeOrder: o.closeOrder,
+              outletName: o.outletName,
             })
             insertEntry(d, open)
             insertEntry(d, close)
