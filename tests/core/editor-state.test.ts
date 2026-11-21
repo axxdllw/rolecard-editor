@@ -38,6 +38,41 @@ describe('撤销/重做', () => {
     expect(store.getState().future).toHaveLength(0)
   })
 
+  it('连续整值替换同一字段时只保留最后一次的值，撤销仍还原到最初', () => {
+    const store = createDocStore<{ a: { text: string }; n: number; extra?: string }>()
+    store.getState().load({ a: { text: '' }, n: 0 })
+    for (let i = 1; i <= 50; i++) store.getState().update((d) => void (d.a.text = 'x'.repeat(i)), { key: 'a' })
+    const [item] = store.getState().past
+    expect(item.patches).toHaveLength(1)
+    expect(item.inverse).toHaveLength(1)
+    expect(store.getState().doc!.a.text).toHaveLength(50)
+
+    // 第一次是新增字段（add），后面的替换也能压缩，撤销时删掉字段
+    store.getState().update((d) => void (d.extra = '1'), { key: 'extra' })
+    store.getState().update((d) => void (d.extra = '12'), { key: 'extra' })
+    expect(store.getState().past[1].patches).toEqual([{ op: 'add', path: ['extra'], value: '12' }])
+    store.getState().undo()
+    expect('extra' in store.getState().doc!).toBe(false)
+    store.getState().undo()
+    expect(store.getState().doc).toEqual({ a: { text: '' }, n: 0 })
+    store.getState().redo()
+    store.getState().redo()
+    expect(store.getState().doc).toEqual({ a: { text: 'x'.repeat(50) }, n: 0, extra: '12' })
+  })
+
+  it('补丁路径有包含关系或不是替换时不压缩，按原样拼接', () => {
+    const store = createDocStore<{ a: { text: string }; list: number[] }>()
+    store.getState().load({ a: { text: '' }, list: [] })
+    store.getState().update((d) => void (d.a.text = '1'), { key: 'k' })
+    store.getState().update((d) => void (d.a = { text: '2' }), { key: 'k' })
+    store.getState().update((d) => void d.list.push(1), { key: 'k' })
+    store.getState().update((d) => void (d.a.text = '3'), { key: 'k' })
+    expect(store.getState().past).toHaveLength(1)
+    expect(store.getState().past[0].patches.length).toBeGreaterThan(3)
+    store.getState().undo()
+    expect(store.getState().doc).toEqual({ a: { text: '' }, list: [] })
+  })
+
   it('卡片文档：改 data 后顶层镜像字段自动同步，撤销一起还原', () => {
     useCardDoc.getState().load(makeCardDoc(createEmptyCard('甲')))
     useCardDoc.getState().update((d) => void (d.card.data.name = '乙'))

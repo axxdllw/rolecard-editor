@@ -38,6 +38,35 @@ export interface DocState<T> {
 const MERGE_WINDOW = 1500
 const MAX_HISTORY = 300
 
+function isPrefix(a: Patch['path'], b: Patch['path']): boolean {
+  return a.length <= b.length && a.every((k, i) => k === b[i])
+}
+
+/**
+ * 合并连续修改时压缩补丁：同一路径反复整值替换（例如在长文本里打字）只留最后一次的值。
+ * 不压缩的话每次按键的整段文本都留在历史里，几十万字的脚本很快就占满内存。
+ * 只处理最常见的情况：新补丁都是 replace、路径都在上一步里出现过、所有路径互不包含；
+ * 这时上一步的反向补丁已经能还原这些路径，新的反向补丁可以丢掉。不满足时返回 null，按原样拼接。
+ */
+function compactPatches(prev: Patch[], next: Patch[]): Patch[] | null {
+  if (!next.every((p) => p.op === 'replace')) return null
+  // add 只接受对象键（数组下标是数字，插入会让后面的路径错位）
+  if (!prev.every((p) => p.op === 'replace' || (p.op === 'add' && typeof p.path[p.path.length - 1] === 'string'))) return null
+  const all = [...prev, ...next]
+  for (const a of all) {
+    for (const b of all) {
+      if (a !== b && a.path.length !== b.path.length && isPrefix(a.path, b.path)) return null
+    }
+  }
+  const result = [...prev]
+  for (const p of next) {
+    const i = result.findLastIndex((q) => q.path.length === p.path.length && isPrefix(q.path, p.path))
+    if (i < 0) return null
+    result[i] = { ...result[i], value: p.value }
+  }
+  return result
+}
+
 export type DocStore<T> = UseBoundStore<StoreApi<DocState<T>>>
 
 export function createDocStore<T extends object>(postProcess?: (draft: Draft<T>) => void): DocStore<T> {
@@ -62,9 +91,12 @@ export function createDocStore<T extends object>(postProcess?: (draft: Draft<T>)
       const top = past[past.length - 1]
       let nextPast: HistoryItem[]
       if (options.key && top?.key === options.key && now - top.time < MERGE_WINDOW) {
+        const compacted = compactPatches(top.patches, patches)
         nextPast = [
           ...past.slice(0, -1),
-          { patches: [...top.patches, ...patches], inverse: [...inverse, ...top.inverse], key: top.key, label: top.label, time: now },
+          compacted
+            ? { ...top, patches: compacted, time: now }
+            : { patches: [...top.patches, ...patches], inverse: [...inverse, ...top.inverse], key: top.key, label: top.label, time: now },
         ]
       } else {
         nextPast = [...past, { patches, inverse, key: options.key, label: options.label, time: now }].slice(-MAX_HISTORY)
