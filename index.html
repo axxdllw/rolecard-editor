@@ -2,6 +2,8 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
+    <!-- 渲染预览的框架只能是 data: 地址，防止卡片脚本把它导航回本站拿到本地数据 -->
+    <meta http-equiv="Content-Security-Policy" content="frame-src data:; object-src 'none'" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#7c3aed" />

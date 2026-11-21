@@ -26,6 +26,8 @@ export interface CardPreviewData {
   aiReply: string
   /** 手动改过的预览变量（JSON 文本）；为空时从世界书 [initvar] 条目生成 */
   variables: string
+  /** 是否运行卡片里的酒馆助手脚本（默认运行） */
+  runScripts?: boolean
 }
 
 export interface CardRecord {

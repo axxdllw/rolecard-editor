@@ -1,5 +1,6 @@
 /**
- * 渲染预览侧栏：按酒馆和酒馆助手的规则实时渲染当前卡片的开场白和模拟对话。
+ * 渲染预览侧栏：按酒馆和酒馆助手的规则实时渲染当前卡片的开场白和模拟对话，
+ * 并在隔离的预览宿主页里运行卡片的酒馆助手脚本（如 MVU）。
  */
 import { BracesIcon, RotateCwIcon, ScrollTextIcon, Trash2Icon, XIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -11,21 +12,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import type { CharacterCardV3, JsonObject, Lorebook } from '@/core/card/types'
+import type { JsonObject, Lorebook } from '@/core/card/types'
+import { lorebookToWorld } from '@/core/lorebook/world'
 import { receiveMessage } from '@/core/render/display'
+import { enabledHelperScripts, helperCharacterVariables, usesMvu } from '@/core/render/helperScripts'
 import { initVariablesFromBook } from '@/core/render/initvar'
 import { getRegexScripts } from '@/core/regex/regex'
 import { db, type CardPreviewData } from '@/db/db'
 import { useCardDoc } from '@/features/editor/cardDoc'
 import { useSettings } from '@/lib/settings'
 import { cn } from '@/lib/utils'
-import { buildChatFrameDocument, FRAME_SANDBOX, type ChatFrameMessage } from './chatFrame'
 import { formatMessage } from './formatMessage'
-import { buildFrontendDocument, type PreviewChatMessage } from './thShim'
+import { HOST_SANDBOX, hostDocumentUrl } from './hostFrame'
+import type { HostMessage, HostSession } from './hostRuntime'
+import { buildFrontendDocument, buildScriptDocument } from './thShim'
 
-const DEFAULT_PREVIEW: CardPreviewData = { greeting: 0, exchange: false, userMessage: '', aiReply: '', variables: '' }
+const DEFAULT_PREVIEW: CardPreviewData = { greeting: 0, exchange: false, userMessage: '', aiReply: '', variables: '', runScripts: true }
 const RENDER_DELAY = 300
-const MAX_LOGS = 200
+const MAX_LOGS = 300
+
+/** 脚本写进酒馆扩展设置的内容（如 MVU 的设置），在宿主页重建之间保留 */
+let savedExtensionSettings: Record<string, unknown> | null = null
 
 interface LogEntry {
   id: number
@@ -34,7 +41,7 @@ interface LogEntry {
   text: string
 }
 
-/** 字符串指纹（FNV-1a），用来判断消息是否需要重新渲染 */
+/** 字符串指纹（FNV-1a） */
 function hashString(text: string): string {
   let h = 0x811c9dc5
   for (let i = 0; i < text.length; i++) {
@@ -44,7 +51,7 @@ function hashString(text: string): string {
   return (h >>> 0).toString(36) + text.length.toString(36)
 }
 
-/** 头像缩略图（data URL），沙箱里的 iframe 读不到本页的 blob 地址 */
+/** 头像缩略图（data URL），预览页读不到本页的 blob 地址 */
 function useAvatarThumb(blob: Blob | null): string | null {
   const [url, setUrl] = useState<string | null>(null)
   useEffect(() => {
@@ -68,22 +75,6 @@ function useAvatarThumb(blob: Blob | null): string | null {
     }
   }, [blob])
   return blob ? url : null
-}
-
-/** 卡片里的酒馆助手角色脚本数量（预览不运行它们） */
-function countHelperScripts(card: CharacterCardV3): number {
-  const ext = (card.data.extensions ?? {}) as JsonObject
-  const raw = ext.tavern_helper
-  const settings = Array.isArray(raw) ? Object.fromEntries(raw as [string, unknown][]) : (raw as JsonObject | undefined)
-  const scripts = (settings?.scripts ?? ext.TavernHelper_scripts) as unknown
-  if (!Array.isArray(scripts)) return 0
-  const count = (list: unknown[]): number =>
-    list.reduce<number>((n, s) => {
-      const item = s as JsonObject
-      if (Array.isArray(item.scripts)) return n + count(item.scripts)
-      return n + (item.enabled === false ? 0 : 1)
-    }, 0)
-  return count(scripts)
 }
 
 /** 预览数据存进卡库记录（不写进卡，随卡删除） */
@@ -126,6 +117,16 @@ function usePreviewData(cardId: string) {
   return [data, update] as const
 }
 
+function parseObject(text: string): Record<string, unknown> | null {
+  if (!text.trim()) return null
+  try {
+    const parsed: unknown = JSON.parse(text)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null
+  } catch {
+    return null
+  }
+}
+
 export interface RenderPanelProps {
   cardId: string
   avatar: Blob | null
@@ -140,92 +141,118 @@ export default function RenderPanel({ cardId, avatar, onClose, className }: Rend
   const [section, setSection] = useState<'' | 'vars' | 'log'>('')
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [reloadKey, setReloadKey] = useState(0)
-  const [frameReady, setFrameReady] = useState(false)
+  const [readyKey, setReadyKey] = useState<string | null>(null)
   const [varsDraft, setVarsDraft] = useState<string | null>(null)
+  const [runtime, setRuntime] = useState<{ messageId: number; variables: Record<string, unknown> } | null>(null)
   const frameRef = useRef<HTMLIFrameElement>(null)
   const logId = useRef(0)
+  const seq = useRef(0)
   const charAvatar = useAvatarThumb(avatar)
-  const chatDoc = useMemo(() => buildChatFrameDocument(), [])
+  const hostUrl = useMemo(() => hostDocumentUrl(), [])
 
   const charName = card?.data.name || '角色'
+  const ext = useMemo(() => (card?.data.extensions ?? {}) as JsonObject, [card?.data.extensions])
   const greetings = useMemo(() => (card ? [card.data.first_mes ?? '', ...(card.data.alternate_greetings ?? [])] : []), [card])
   const greetingIndex = Math.min(preview.greeting, Math.max(0, greetings.length - 1))
-  const helperScripts = useMemo(() => (card ? countHelperScripts(card) : 0), [card])
+  const allScripts = useMemo(() => enabledHelperScripts(ext), [ext])
+  const runScripts = preview.runScripts !== false
+  const scripts = useMemo(() => (runScripts ? allScripts : []), [runScripts, allScripts])
+  const mvu = usesMvu(scripts)
+
+  // 脚本变了就重建宿主页（脚本只在宿主页启动时加载一次）
+  const hostKey = useMemo(
+    () => `${reloadKey}:${hashString(JSON.stringify(scripts.map((s) => [s.id, s.name, s.content, s.button, s.data])))}`,
+    [scripts, reloadKey],
+  )
+  const hostKeyRef = useRef(hostKey)
+  useEffect(() => {
+    hostKeyRef.current = hostKey
+  }, [hostKey])
+  const frameReady = readyKey === hostKey
 
   // 变量：手动改过的优先，否则取世界书里的 [initvar]
   const initVars = useMemo(() => initVariablesFromBook(card?.data.character_book as Lorebook | undefined), [card?.data.character_book])
-  const variables = useMemo(() => {
-    if (preview.variables.trim()) {
-      try {
-        const parsed: unknown = JSON.parse(preview.variables)
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed as Record<string, unknown>
-      } catch {
-        // 解析失败时退回默认值，编辑框里会提示
-      }
-    }
-    return initVars.data as Record<string, unknown>
-  }, [preview.variables, initVars])
+  const manualVars = useMemo(() => parseObject(preview.variables), [preview.variables])
 
-  // 计算要显示的消息（防抖），推给聊天层
-  const [messages, setMessages] = useState<ChatFrameMessage[]>([])
+  // 组装一次会话（防抖），交给宿主页重放
+  const lastSession = useRef('')
   useEffect(() => {
-    if (!card) return
+    if (!card || !frameReady) return
     const timer = setTimeout(() => {
       const ctx = { char: charName, user: userName }
-      const scripts = getRegexScripts((card.data.extensions ?? {}) as Record<string, unknown>)
+      const regex = getRegexScripts(ext as Record<string, unknown>)
       const sources = [{ name: charName, isUser: false, text: greetings[greetingIndex] ?? '' }]
       if (preview.exchange) {
         sources.push({ name: userName, isUser: true, text: preview.userMessage }, { name: charName, isUser: false, text: preview.aiReply })
       }
-      const received = sources.map((s) => receiveMessage(s, scripts, ctx))
+      const received = sources.map((s) => receiveMessage(s, regex, ctx))
       const last = sources.length - 1
-      const chat: PreviewChatMessage[] = sources.map((s, i) => ({
-        message_id: i,
-        name: s.name,
-        role: s.isUser ? 'user' : 'assistant',
-        is_hidden: false,
-        message: received[i],
-      }))
+      const messages: HostMessage[] = sources.map((s, i) => {
+        const formatted = formatMessage(received[i], { name: s.name, isUser: s.isUser, depth: last - i, scripts: regex, ctx })
+        return {
+          name: s.name,
+          isUser: s.isUser,
+          mes: received[i],
+          html: formatted.html,
+          frontends: formatted.frontends.map((content) => buildFrontendDocument(content, charAvatar)),
+          avatar: s.isUser ? null : charAvatar,
+        }
+      })
+      const book = card.data.character_book as Lorebook | undefined
+      const worldName = (typeof ext.world === 'string' && ext.world) || book?.name || charName
       const cardData: Record<string, unknown> = { ...card.data }
       delete cardData.character_book
-      const viewportHeight = frameRef.current?.clientHeight || 600
-      const next = sources.map((s, i): ChatFrameMessage => {
-        const formatted = formatMessage(received[i], { name: s.name, isUser: s.isUser, depth: last - i, scripts, ctx })
-        const frontends = formatted.frontends.map((content, k) =>
-          buildFrontendDocument(content, {
-            iframeName: `TH-message--${i}--${k}`,
-            messageId: i,
-            lastMessageId: last,
-            charName,
-            userName,
-            charAvatar,
-            variables,
-            chat,
-            card: cardData,
-            viewportHeight,
-          }),
-        )
-        const hash = hashString(`${reloadKey}\n${s.name}\n${formatted.html}\n${frontends.join('\n')}`)
-        return { key: `m${i}`, hash, index: i, name: s.name, isUser: s.isUser, avatar: s.isUser ? null : charAvatar, html: formatted.html, frontends }
-      })
-      setMessages(next)
+      const stat = manualVars ?? (initVars.data as Record<string, unknown>)
+      const session: Omit<HostSession, 'seq'> = {
+        charName,
+        userName,
+        charAvatar,
+        card: {
+          name: card.data.name,
+          description: card.data.description,
+          personality: card.data.personality,
+          scenario: card.data.scenario,
+          first_mes: card.data.first_mes,
+          mes_example: card.data.mes_example,
+          creatorcomment: card.data.creator_notes,
+          tags: card.data.tags,
+          data: cardData,
+        },
+        world: book?.entries?.length ? { name: worldName, entries: lorebookToWorld(book).entries as Record<string, unknown> } : null,
+        characterVariables: helperCharacterVariables(ext),
+        // 有 MVU 时由它从 [initvar] 初始化，手动填写的变量作为第 0 楼的初始值；没有 MVU 时每层都放一份
+        seed: mvu ? (manualVars ? { stat_data: manualVars } : null) : { stat_data: stat, display_data: stat, delta_data: {} },
+        seedAll: !mvu,
+        scripts: scripts.map((s) => ({ ...s, doc: buildScriptDocument(s.content) })),
+        mvu,
+        messages,
+        extensionSettings: savedExtensionSettings,
+      }
+      const fingerprint = hashString(JSON.stringify({ ...session, extensionSettings: null }))
+      if (fingerprint === lastSession.current) return
+      lastSession.current = fingerprint
+      frameRef.current?.contentWindow?.postMessage({ type: 'rce-session', session: { ...session, seq: ++seq.current } }, '*')
     }, RENDER_DELAY)
     return () => clearTimeout(timer)
-  }, [card, charName, userName, greetings, greetingIndex, preview.exchange, preview.userMessage, preview.aiReply, variables, charAvatar, reloadKey])
+  }, [card, ext, charName, userName, greetings, greetingIndex, preview.exchange, preview.userMessage, preview.aiReply, manualVars, initVars, charAvatar, scripts, mvu, frameReady])
 
-  useEffect(() => {
-    if (frameReady) frameRef.current?.contentWindow?.postMessage({ type: 'rce-render', messages }, '*')
-  }, [messages, frameReady])
-
-  // 只接收聊天层发来的消息，内容一律当纯文本显示
+  // 只接收预览页发来的消息，内容一律当纯文本显示
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
       if (e.source !== frameRef.current?.contentWindow) return
-      const data = e.data as { type?: string; level?: string; text?: string; source?: string } | null
-      if (data?.type === 'rce-ready') setFrameReady(true)
-      else if (data?.type === 'rce-log') {
+      const data = e.data as { type?: string; level?: string; text?: string; source?: string; [k: string]: unknown } | null
+      if (data?.type === 'rce-ready') {
+        lastSession.current = ''
+        setRuntime(null)
+        setReadyKey(hostKeyRef.current)
+      } else if (data?.type === 'rce-log') {
         const entry: LogEntry = { id: ++logId.current, level: String(data.level), source: String(data.source ?? ''), text: String(data.text ?? '') }
         setLogs((prev) => [...prev, entry].slice(-MAX_LOGS))
+      } else if (data?.type === 'rce-state') {
+        const variables = data.variables
+        if (variables && typeof variables === 'object') setRuntime({ messageId: Number(data.messageId), variables: variables as Record<string, unknown> })
+      } else if (data?.type === 'rce-settings') {
+        if (data.extensionSettings && typeof data.extensionSettings === 'object') savedExtensionSettings = data.extensionSettings as Record<string, unknown>
       }
     }
     window.addEventListener('message', onMessage)
@@ -266,7 +293,7 @@ export default function RenderPanel({ cardId, avatar, onClose, className }: Rend
           模拟对话
         </Label>
         <div className="flex-1" />
-        <Button variant="ghost" size="icon-sm" title="重新加载（重新运行前端脚本）" aria-label="重新加载" onClick={() => setReloadKey((k) => k + 1)}>
+        <Button variant="ghost" size="icon-sm" title="重新加载（重新运行脚本和前端）" aria-label="重新加载" onClick={() => setReloadKey((k) => k + 1)}>
           <RotateCwIcon />
         </Button>
         {onClose && (
@@ -288,24 +315,33 @@ export default function RenderPanel({ cardId, avatar, onClose, className }: Rend
           <Textarea
             rows={3}
             className="max-h-40 text-sm"
-            placeholder="粘贴一段 AI 回复，例如带 <StatusPlaceHolderImpl/> 的正文，看状态栏效果"
+            placeholder="粘贴一段 AI 回复，例如带 <UpdateVariable> 变量更新和 <StatusPlaceHolderImpl/> 的正文，看 MVU 更新变量和状态栏的效果"
             value={preview.aiReply}
             onChange={(e) => updatePreview({ aiReply: e.target.value })}
           />
         </div>
       )}
 
-      {helperScripts > 0 && (
-        <p className="rounded-md bg-amber-500/10 px-2 py-1 text-xs text-amber-700 dark:text-amber-400">
-          这张卡有 {helperScripts} 个酒馆助手脚本（如 MVU、手机插件），预览里不运行它们，依赖它们的界面可能不完整。
-        </p>
+      {allScripts.length > 0 && (
+        <div className="flex items-start gap-2 rounded-md bg-amber-500/10 px-2 py-1 text-xs text-amber-700 dark:text-amber-400">
+          <p className="flex-1">
+            {runScripts
+              ? `正在运行 ${allScripts.length} 个酒馆助手脚本（实验）。生成回复、斜杠命令等操作只记日志不执行。`
+              : `这张卡有 ${allScripts.length} 个酒馆助手脚本，已关闭运行，依赖它们的界面可能不完整。`}
+          </p>
+          <Label className="flex shrink-0 items-center gap-1 text-xs font-normal">
+            <Switch checked={runScripts} onCheckedChange={(v) => updatePreview({ runScripts: v })} />
+            运行脚本
+          </Label>
+        </div>
       )}
 
       <iframe
+        key={hostKey}
         ref={frameRef}
         title="渲染预览"
-        sandbox={FRAME_SANDBOX}
-        srcDoc={chatDoc}
+        sandbox={HOST_SANDBOX}
+        src={hostUrl}
         className="min-h-72 w-full flex-1 rounded-lg border bg-[#171717]"
       />
 
@@ -323,13 +359,23 @@ export default function RenderPanel({ cardId, avatar, onClose, className }: Rend
             )}
           </ToggleGroupItem>
         </ToggleGroup>
-        <span className="truncate text-xs text-muted-foreground">需要联网加载前端库；卡片脚本在隔离沙箱里运行</span>
+        <span className="truncate text-xs text-muted-foreground">需要联网加载前端库；脚本在与编辑器隔离的预览页里运行</span>
       </div>
 
       {section === 'vars' && (
         <div className="flex flex-col gap-1.5">
+          {mvu && (
+            <>
+              <p className="text-xs text-muted-foreground">
+                MVU 算出的变量（第 {runtime?.messageId ?? '-'} 楼）。打开「模拟对话」并粘贴带变量更新的回复，可以看到变化。
+              </p>
+              <pre className="max-h-64 overflow-auto rounded-md border bg-muted/30 p-2 font-mono text-xs">
+                {runtime ? JSON.stringify(runtime.variables.stat_data ?? runtime.variables, null, 2) : '等待 MVU 初始化…'}
+              </pre>
+            </>
+          )}
           <p className="text-xs text-muted-foreground">
-            前端里 getVariables / Mvu 读到的 stat_data。
+            {mvu ? '初始变量（可选）：填写后作为第 0 楼的 stat_data，MVU 会再合并世界书的 [initvar]。' : '前端里 getVariables / Mvu 读到的 stat_data。'}
             {initVars.sources.length > 0 ? `默认取自世界书：${initVars.sources.join('、')}` : '世界书里没有 [initvar] 条目。'}
             {initVars.errors.map((e) => (
               <span key={e} className="block text-destructive">
