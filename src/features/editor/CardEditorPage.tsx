@@ -6,11 +6,12 @@ import {
   FileJsonIcon,
   ImageIcon,
   LoaderIcon,
+  MonitorPlayIcon,
   Redo2Icon,
   Undo2Icon,
   WandSparklesIcon,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { CardAvatar } from '@/components/CardAvatar'
@@ -24,6 +25,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { JsonObject, Lorebook } from '@/core/card/types'
@@ -33,12 +35,18 @@ import { QuickEditDialog } from '@/features/quick-edit/QuickEditDialog'
 import { RegexPanel } from '@/features/regex/RegexPanel'
 import { WorldbookEditor } from '@/features/worldbook/WorldbookEditor'
 import { downloadBlob, pickFiles } from '@/lib/files'
+import { useSettings } from '@/lib/settings'
+import { useMediaQuery } from '@/lib/useMediaQuery'
+import { cn } from '@/lib/utils'
 import { cardFileBase, duplicateCard, exportCardJson, exportCardPng, saveCard } from '@/services/cards'
 import { makeCardDoc, updateCardBook, useCardDoc, type CardDoc } from './cardDoc'
 import { CharacterTab } from './CharacterTab'
 import { useAutosave, type SaveStatus } from './autosave'
 
 const EMPTY_KEYS: string[] = []
+
+// 渲染预览依赖 showdown、DOMPurify 等，打开时才加载
+const RenderPanel = lazy(() => import('@/features/render/RenderPanel'))
 
 interface LoadedDoc extends CardDoc {
   id: string
@@ -102,6 +110,10 @@ function Editor({ record }: { record: CardRecord }) {
     await saveCard((doc as LoadedDoc).id, doc.card)
   })
   useUndoShortcuts()
+  const renderOpen = useSettings((s) => s.renderPanelOpen)
+  const setRenderOpen = (open: boolean) => useSettings.getState().set({ renderPanelOpen: open })
+  const wide = useMediaQuery('(min-width: 1280px)')
+  const split = renderOpen && wide
 
   const changeAvatar = async () => {
     const [file] = await pickFiles('image/png,image/jpeg,image/webp,image/gif')
@@ -123,7 +135,7 @@ function Editor({ record }: { record: CardRecord }) {
   const regexCount = Array.isArray((card.data.extensions as JsonObject)?.regex_scripts) ? ((card.data.extensions as JsonObject).regex_scripts as unknown[]).length : 0
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-3 p-4">
+    <div className={cn('mx-auto flex w-full flex-1 flex-col gap-3 p-4', split ? 'max-w-[1800px]' : 'max-w-6xl')}>
       <div className="flex flex-wrap items-center gap-3">
         <Button variant="ghost" size="icon" asChild aria-label={fromLorebooks ? '返回世界书库' : '返回卡库'}>
           <Link to={fromLorebooks ? '/lorebooks' : '/'}>
@@ -176,6 +188,9 @@ function Editor({ record }: { record: CardRecord }) {
             </TooltipTrigger>
             <TooltipContent>重做（Ctrl+Y）</TooltipContent>
           </Tooltip>
+          <Button variant={renderOpen ? 'secondary' : 'outline'} onClick={() => setRenderOpen(!renderOpen)} aria-pressed={renderOpen}>
+            <MonitorPlayIcon /> 渲染预览
+          </Button>
           <Button variant="outline" onClick={() => setQuickOpen(true)}>
             <WandSparklesIcon /> 快捷修改
           </Button>
@@ -209,30 +224,49 @@ function Editor({ record }: { record: CardRecord }) {
         </div>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setParams({ tab: v }, { replace: true, state: location.state })} className="flex flex-1 flex-col gap-3">
-        <TabsList className="sticky top-12 z-20 w-full justify-start overflow-x-auto overflow-y-hidden sm:w-fit">
-          <TabsTrigger value="character">角色</TabsTrigger>
-          <TabsTrigger value="worldbook">
-            世界书 <span className="text-xs text-muted-foreground">{book?.entries.length ?? 0}</span>
-          </TabsTrigger>
-          <TabsTrigger value="regex">
-            正则 <span className="text-xs text-muted-foreground">{regexCount}</span>
-          </TabsTrigger>
-          <TabsTrigger value="preview">提示词预览</TabsTrigger>
-        </TabsList>
-        <TabsContent value="character">
-          <CharacterTab avatar={avatar} />
-        </TabsContent>
-        <TabsContent value="worldbook" className="flex flex-col">
-          <WorldbookEditor book={book} keys={entryKeys} update={updateCardBook} mode="card" />
-        </TabsContent>
-        <TabsContent value="regex">
-          <RegexPanel />
-        </TabsContent>
-        <TabsContent value="preview">
-          <PromptPreview card={card} />
-        </TabsContent>
-      </Tabs>
+      <div className={cn('flex flex-1 flex-col gap-4', split && 'grid grid-cols-[minmax(0,1fr)_minmax(420px,42%)] items-start')}>
+        <Tabs value={tab} onValueChange={(v) => setParams({ tab: v }, { replace: true, state: location.state })} className="flex min-w-0 flex-1 flex-col gap-3">
+          <TabsList className="sticky top-12 z-20 w-full justify-start overflow-x-auto overflow-y-hidden sm:w-fit">
+            <TabsTrigger value="character">角色</TabsTrigger>
+            <TabsTrigger value="worldbook">
+              世界书 <span className="text-xs text-muted-foreground">{book?.entries.length ?? 0}</span>
+            </TabsTrigger>
+            <TabsTrigger value="regex">
+              正则 <span className="text-xs text-muted-foreground">{regexCount}</span>
+            </TabsTrigger>
+            <TabsTrigger value="preview">提示词预览</TabsTrigger>
+          </TabsList>
+          <TabsContent value="character">
+            <CharacterTab avatar={avatar} />
+          </TabsContent>
+          <TabsContent value="worldbook" className="flex flex-col">
+            <WorldbookEditor book={book} keys={entryKeys} update={updateCardBook} mode="card" />
+          </TabsContent>
+          <TabsContent value="regex">
+            <RegexPanel />
+          </TabsContent>
+          <TabsContent value="preview">
+            <PromptPreview card={card} />
+          </TabsContent>
+        </Tabs>
+        {split && (
+          <aside className="sticky top-14 flex h-[calc(100svh-9.5rem)] min-h-[480px] flex-col rounded-xl border bg-card p-3">
+            <Suspense fallback={<p className="p-4 text-sm text-muted-foreground">加载预览…</p>}>
+              <RenderPanel cardId={record.id} avatar={avatar} onClose={() => setRenderOpen(false)} className="flex-1" />
+            </Suspense>
+          </aside>
+        )}
+      </div>
+      {!wide && (
+        <Sheet open={renderOpen} onOpenChange={setRenderOpen}>
+          <SheetContent side="right" showCloseButton={false} className="w-full p-3 data-[side=right]:w-full data-[side=right]:sm:max-w-xl">
+            <SheetTitle className="sr-only">渲染预览</SheetTitle>
+            <Suspense fallback={<p className="p-4 text-sm text-muted-foreground">加载预览…</p>}>
+              <RenderPanel cardId={record.id} avatar={avatar} onClose={() => setRenderOpen(false)} className="flex-1" />
+            </Suspense>
+          </SheetContent>
+        </Sheet>
+      )}
 
       <QuickEditDialog open={quickOpen} onOpenChange={setQuickOpen} />
       <CropDialog

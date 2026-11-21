@@ -24,6 +24,8 @@ interface SettingsState {
   lastBackupAt: number | null
   /** 自己保存的描述模板 */
   customTemplates: CustomTemplate[]
+  /** 编辑页是否打开渲染预览侧栏 */
+  renderPanelOpen: boolean
   set: (patch: Partial<Omit<SettingsState, 'set'>>) => void
 }
 
@@ -36,6 +38,7 @@ export const useSettings = create<SettingsState>()(
       libraryView: 'grid',
       lastBackupAt: null,
       customTemplates: [],
+      renderPanelOpen: false,
       set: (patch) => set(patch),
     }),
     { name: 'rce-settings' },

@@ -16,6 +16,18 @@ export interface CardStats {
   constantTokens: number | null
 }
 
+/** 渲染预览用的测试数据，只存在本地库里，不写进卡 */
+export interface CardPreviewData {
+  /** 选中的开场白：0 主开场白，1..N 备选开场白 */
+  greeting: number
+  /** 是否在开场白后面加一轮模拟对话 */
+  exchange: boolean
+  userMessage: string
+  aiReply: string
+  /** 手动改过的预览变量（JSON 文本）；为空时从世界书 [initvar] 条目生成 */
+  variables: string
+}
+
 export interface CardRecord {
   id: string
   card: CharacterCardV3
@@ -31,6 +43,7 @@ export interface CardRecord {
   sourceFormat: 'png' | 'json' | 'charx' | 'new' | 'copy'
   fileName: string
   stats: CardStats
+  preview?: CardPreviewData
   createdAt: number
   updatedAt: number
 }
