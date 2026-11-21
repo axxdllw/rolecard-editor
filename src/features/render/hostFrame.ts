@@ -24,7 +24,7 @@ const HOST_LIBRARIES = [
 ].join('\n')
 
 /** 酒馆助手暴露的接口名（取自酒馆助手 4.7 的 @types），没有专门模拟的统一记日志并返回空结果 */
-const API_NAMES = (
+export const API_NAMES = (
   'appendInexistentScriptButtons builtin createCharacter createChatMessages createLorebook createLorebookEntries createOrReplaceCharacter ' +
   'createOrReplacePreset createOrReplaceWorldbook createPreset createWorldbook createWorldbookEntries deleteCharacter deleteChatMessages ' +
   'deleteLorebook deleteLorebookEntries deletePreset deleteVariable deleteWorldbook deleteWorldbookEntries errorCatched eventClearAll ' +

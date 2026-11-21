@@ -7,16 +7,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import type { JsonObject } from '@/core/card/types'
+import { HELPER_EXTENSION_KEYS, readHelper } from '@/core/tavern-helper/scripts'
 import { setCardPath, updateCard, useCardDoc, useCardPath } from './cardDoc'
 import { FieldLabel, InputField, Section, TextField } from './fields'
 
 /** 已有专门界面的扩展字段，其余的放进“其他扩展数据”JSON 编辑 */
 const KNOWN_KEYS = new Set(['talkativeness', 'fav', 'world', 'depth_prompt', 'regex_scripts'])
+/** 加上酒馆助手脚本字段（结构能识别时由脚本页编辑） */
+const KNOWN_WITH_HELPER = new Set([...KNOWN_KEYS, ...HELPER_EXTENSION_KEYS])
 const EMPTY_EXT: JsonObject = {}
 
 function OtherExtensions() {
   const ext = useCardDoc((s) => (s.doc?.card.data.extensions as JsonObject | undefined) ?? EMPTY_EXT)
-  const others = useMemo(() => Object.fromEntries(Object.entries(ext).filter(([k]) => !KNOWN_KEYS.has(k))), [ext])
+  // 脚本数据结构无法识别时脚本页不接管，留在这里按 JSON 改
+  const helperValid = useMemo(() => readHelper(ext).invalid === null, [ext])
+  const known = helperValid ? KNOWN_WITH_HELPER : KNOWN_KEYS
+  const others = useMemo(() => Object.fromEntries(Object.entries(ext).filter(([k]) => !known.has(k))), [ext, known])
   const serialized = useMemo(() => JSON.stringify(others, null, 2), [others])
   const [draft, setDraft] = useState(serialized)
   const [error, setError] = useState<string | null>(null)
@@ -41,9 +47,9 @@ function OtherExtensions() {
     updateCard(
       (d) => {
         const target = d.card.data.extensions as JsonObject
-        for (const key of Object.keys(target)) if (!KNOWN_KEYS.has(key)) delete target[key]
+        for (const key of Object.keys(target)) if (!known.has(key)) delete target[key]
         for (const [key, value] of Object.entries(parsed as JsonObject)) {
-          if (!KNOWN_KEYS.has(key)) target[key] = value
+          if (!known.has(key)) target[key] = value
         }
       },
       { label: '修改扩展数据' },
@@ -56,7 +62,7 @@ function OtherExtensions() {
     <div id="other-extensions" className="flex flex-col gap-1.5">
       <FieldLabel
         label={`其他扩展数据（${Object.keys(others).length} 项）`}
-        hint="其他插件写进卡里的数据，例如酒馆助手脚本。这里按 JSON 原样编辑，改完点“应用”。"
+        hint="其他插件写进卡里的数据（酒馆助手脚本在“脚本”页编辑）。这里按 JSON 原样编辑，改完点“应用”。"
         extra={
           dirty && (
             <div className="flex gap-1">

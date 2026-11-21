@@ -30,6 +30,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { JsonObject, Lorebook } from '@/core/card/types'
 import type { DepLocation } from '@/core/deps/deps'
+import { countScripts } from '@/core/tavern-helper/scripts'
 import { db, type CardRecord } from '@/db/db'
 import { DependencySheet, DependencySummary } from '@/features/deps/DependencyPanel'
 import { jumpTarget, revealAnchor, useDependencyReport } from '@/features/deps/jump'
@@ -50,6 +51,8 @@ const EMPTY_KEYS: string[] = []
 
 // 渲染预览依赖 showdown、DOMPurify 等，打开时才加载
 const RenderPanel = lazy(() => import('@/features/render/RenderPanel'))
+// 脚本编辑带 JavaScript 语法和接口清单，切到脚本页才加载
+const ScriptsPanel = lazy(() => import('@/features/scripts/ScriptsPanel'))
 
 interface LoadedDoc extends CardDoc {
   id: string
@@ -148,6 +151,7 @@ function Editor({ record }: { record: CardRecord }) {
   if (!card) return null
   const book = card.data.character_book as Lorebook | undefined
   const regexCount = Array.isArray((card.data.extensions as JsonObject)?.regex_scripts) ? ((card.data.extensions as JsonObject).regex_scripts as unknown[]).length : 0
+  const scriptCount = countScripts((card.data.extensions ?? {}) as JsonObject)
 
   return (
     <div className={cn('mx-auto flex w-full flex-1 flex-col gap-3 p-4', split ? 'max-w-[1800px]' : 'max-w-6xl')}>
@@ -257,6 +261,9 @@ function Editor({ record }: { record: CardRecord }) {
             <TabsTrigger value="regex">
               正则 <span className="text-xs text-muted-foreground">{regexCount}</span>
             </TabsTrigger>
+            <TabsTrigger value="scripts">
+              脚本 <span className="text-xs text-muted-foreground">{scriptCount}</span>
+            </TabsTrigger>
             <TabsTrigger value="preview">提示词预览</TabsTrigger>
           </TabsList>
           <TabsContent value="character">
@@ -273,6 +280,11 @@ function Editor({ record }: { record: CardRecord }) {
           </TabsContent>
           <TabsContent value="regex">
             <RegexPanel focus={focus?.loc.type === 'regex' ? { index: focus.loc.index, nonce: focus.nonce } : undefined} />
+          </TabsContent>
+          <TabsContent value="scripts">
+            <Suspense fallback={<p className="p-4 text-sm text-muted-foreground">加载脚本编辑器…</p>}>
+              <ScriptsPanel />
+            </Suspense>
           </TabsContent>
           <TabsContent value="preview">
             <PromptPreview card={card} />
