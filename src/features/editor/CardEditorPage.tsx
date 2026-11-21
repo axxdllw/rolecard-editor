@@ -11,7 +11,7 @@ import {
   WandSparklesIcon,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { CardAvatar } from '@/components/CardAvatar'
 import { CropDialog } from '@/components/CropDialog'
@@ -88,6 +88,9 @@ function Editor({ record }: { record: CardRecord }) {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const tab = params.get('tab') ?? 'character'
+  // 从世界书库点进来的，返回时回到世界书库
+  const location = useLocation()
+  const fromLorebooks = (location.state as { from?: string } | null)?.from === '/lorebooks'
   const [avatar, setAvatar] = useState<Blob | null>(record.avatar)
   const [cropSource, setCropSource] = useState<Blob | null>(null)
   const [quickOpen, setQuickOpen] = useState(false)
@@ -122,8 +125,8 @@ function Editor({ record }: { record: CardRecord }) {
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-3 p-4">
       <div className="flex flex-wrap items-center gap-3">
-        <Button variant="ghost" size="icon" asChild aria-label="返回卡库">
-          <Link to="/">
+        <Button variant="ghost" size="icon" asChild aria-label={fromLorebooks ? '返回世界书库' : '返回卡库'}>
+          <Link to={fromLorebooks ? '/lorebooks' : '/'}>
             <ArrowLeftIcon />
           </Link>
         </Button>
@@ -206,7 +209,7 @@ function Editor({ record }: { record: CardRecord }) {
         </div>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setParams({ tab: v }, { replace: true })} className="flex flex-1 flex-col gap-3">
+      <Tabs value={tab} onValueChange={(v) => setParams({ tab: v }, { replace: true, state: location.state })} className="flex flex-1 flex-col gap-3">
         <TabsList className="sticky top-12 z-20 w-full justify-start overflow-x-auto overflow-y-hidden sm:w-fit">
           <TabsTrigger value="character">角色</TabsTrigger>
           <TabsTrigger value="worldbook">
