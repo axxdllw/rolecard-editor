@@ -1,13 +1,16 @@
 import { BookOpenIcon, LibraryIcon, SettingsIcon } from 'lucide-react'
 import { lazy, Suspense, useEffect } from 'react'
 import { HashRouter, NavLink, Route, Routes } from 'react-router'
+import { toast } from 'sonner'
 import { ConfirmHost } from '@/components/confirm'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ConflictHost } from '@/features/library/importFlow'
 import LibraryPage from '@/features/library/LibraryPage'
+import { formatBytes } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { requestPersistentStorage } from '@/services/backup'
+import { compactStoredAvatars } from '@/services/cards'
 
 const CardEditorPage = lazy(() => import('@/features/editor/CardEditorPage'))
 const LorebookLibraryPage = lazy(() => import('@/features/lorebook-library/LorebookLibraryPage'))
@@ -53,6 +56,9 @@ function Loading() {
 export default function App() {
   useEffect(() => {
     void requestPersistentStorage()
+    compactStoredAvatars()
+      .then((saved) => saved > 0 && toast.success(`已清理头像里重复存放的卡片数据，节省 ${formatBytes(saved)}`))
+      .catch((error) => console.error('清理头像失败', error))
   }, [])
 
   return (

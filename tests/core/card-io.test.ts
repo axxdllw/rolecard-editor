@@ -7,6 +7,7 @@ import {
   parseCardJson,
   parseCardPng,
   serializeCardJson,
+  stripCardPng,
   writeCardPng,
 } from '../../src/core/card/io'
 import { encodeChunks, getTextEntries, readChunks, replaceTextEntries } from '../../src/core/png/png'
@@ -60,6 +61,13 @@ describe('样本卡：弗洛洛2.png', () => {
     const once = writeCardPng(parsed.image, parsed.card)
     const twice = writeCardPng(once, parseCardPng(once).card)
     expect(twice).toEqual(once)
+  })
+
+  it('头像去掉卡片文本后变小，再导出与直接导出逐字节相同', () => {
+    const stripped = stripCardPng(sampleBytes)
+    expect(getTextEntries(readChunks(stripped))).toEqual([])
+    expect(stripped.length).toBeLessThan(sampleBytes.length / 2)
+    expect(writeCardPng(stripped, parsed.card)).toEqual(writeCardPng(parsed.image, parsed.card))
   })
 
   it('修改字段后导出再导入，改动保留且其他字段不受影响', () => {

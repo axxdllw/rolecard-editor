@@ -203,6 +203,14 @@ export function toV2Json(card: CharacterCardV3): JsonObject {
 }
 
 /**
+ * 去掉 PNG 里的 chara/ccv3 块，只留图像和其他块。
+ * 卡库里卡片 JSON 单独存，头像不必再带一份旧卡片数据；导出时 writeCardPng 会重新写入。
+ */
+export function stripCardPng(image: Uint8Array): Uint8Array<ArrayBuffer> {
+  return encodeChunks(replaceTextEntries(readChunks(image, { checkCrc: false }), [...CARD_KEYWORDS], []))
+}
+
+/**
  * 把角色卡写进 PNG：删除旧的 chara/ccv3 块，在 IEND 前依次写入新的 chara 和 ccv3。
  * image 必须是 PNG；JPG/WebP 头像需要先在界面层转成 PNG。
  */

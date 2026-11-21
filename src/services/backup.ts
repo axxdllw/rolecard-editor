@@ -3,7 +3,8 @@
  */
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
 import { db, type CardRecord, type LorebookRecord } from '@/db/db'
-import { blobToBytes, bytesToBlob } from '@/lib/image'
+import { blobToBytes } from '@/lib/image'
+import { avatarFromPng } from './cards'
 
 const APP_ID = 'role-card-editor'
 const BACKUP_VERSION = 1
@@ -56,7 +57,8 @@ export async function restoreBackup(bytes: Uint8Array, mode: RestoreMode): Promi
 
   const cards: CardRecord[] = manifest.cards.map(({ avatarFile, ...rest }) => ({
     ...rest,
-    avatar: avatarFile && files[avatarFile] ? bytesToBlob(files[avatarFile]) : null,
+    // 旧备份里的头像可能还带着卡片文本，恢复时顺手去掉
+    avatar: avatarFile && files[avatarFile] ? avatarFromPng(files[avatarFile]) : null,
   }))
 
   await db.transaction('rw', db.cards, db.lorebooks, async () => {

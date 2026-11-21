@@ -4,7 +4,7 @@
 import { zipSync } from 'fflate'
 import { parseCharx } from '@/core/card/charx'
 import { createEmptyCard, type DescriptionTemplate } from '@/core/card/create'
-import { CardParseError, parseCardJson, parseCardPng, serializeCardJson, writeCardPng, type ParsedCard } from '@/core/card/io'
+import { CardParseError, parseCardJson, parseCardPng, serializeCardJson, stripCardPng, writeCardPng, type ParsedCard } from '@/core/card/io'
 import type { CharacterCardV3 } from '@/core/card/types'
 import { constantPromptTexts } from '@/core/lorebook/assemble'
 import { getRegexScripts } from '@/core/regex/regex'
@@ -34,12 +34,54 @@ export interface ImportedCard {
   sourceFormat: CardRecord['sourceFormat']
 }
 
+/** 头像只存图像：去掉 PNG 里的旧卡片文本，免得和卡片 JSON 重复存一份 */
+export function avatarFromPng(bytes: Uint8Array): Blob {
+  try {
+    return bytesToBlob(stripCardPng(bytes))
+  } catch {
+    return bytesToBlob(bytes)
+  }
+}
+
+const AVATAR_COMPACTED_KEY = 'rce-avatar-compacted'
+let compacting: Promise<number> | null = null
+
+/**
+ * 一次性清理：早期导入的卡把整个原 PNG 存成头像，里面带着旧的卡片文本。
+ * 逐张去掉这些文本，返回省下的字节数；跑完一遍后不再执行。
+ */
+export function compactStoredAvatars(): Promise<number> {
+  compacting ??= runCompactAvatars()
+  return compacting
+}
+
+async function runCompactAvatars(): Promise<number> {
+  if (localStorage.getItem(AVATAR_COMPACTED_KEY)) return 0
+  let saved = 0
+  for (const id of await db.cards.toCollection().primaryKeys()) {
+    const avatar = (await db.cards.get(id))?.avatar
+    if (!avatar) continue
+    const compact = avatarFromPng(await blobToBytes(avatar))
+    if (compact.size >= avatar.size) continue
+    // 期间头像被换掉的话就不动它
+    await db.cards
+      .where('id')
+      .equals(id)
+      .modify((r) => {
+        if (r.avatar?.size === avatar.size) r.avatar = compact
+      })
+    saved += avatar.size - compact.size
+  }
+  localStorage.setItem(AVATAR_COMPACTED_KEY, String(Date.now()))
+  return saved
+}
+
 /** 读取一个角色卡文件（PNG / JSON / CharX），不写数据库 */
 export async function readCardFile(file: File): Promise<ImportedCard> {
   const kind = fileKind(file)
   if (kind === 'png') {
     const bytes = new Uint8Array(await file.arrayBuffer())
-    return { parsed: parseCardPng(bytes), avatar: bytesToBlob(bytes), fileName: file.name, sourceFormat: 'png' }
+    return { parsed: parseCardPng(bytes), avatar: avatarFromPng(bytes), fileName: file.name, sourceFormat: 'png' }
   }
   if (kind === 'json') {
     return { parsed: parseCardJson(await file.text()), avatar: null, fileName: file.name, sourceFormat: 'json' }
@@ -49,7 +91,8 @@ export async function readCardFile(file: File): Promise<ImportedCard> {
     let avatar: Blob | null = null
     if (parsed.avatar) {
       try {
-        avatar = await toPngBlob(new Blob([parsed.avatar.bytes.slice()], { type: `image/${parsed.avatar.ext}` }))
+        const png = await toPngBlob(new Blob([parsed.avatar.bytes.slice()], { type: `image/${parsed.avatar.ext}` }))
+        avatar = avatarFromPng(await blobToBytes(png))
       } catch {
         parsed.warnings.push('CharX 里的头像无法读取，导出时会使用默认头像')
       }
