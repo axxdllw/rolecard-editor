@@ -68,7 +68,7 @@ export function TextField({ path, label, hint, placeholder, minHeight = 80, maxH
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const onChange = useCallback((v: string) => setCardPath(path, v, `编辑${label}`), [pathKey, label])
   return (
-    <div className="flex flex-col gap-1.5">
+    <div id={`field-${path.join('-')}`} className="flex flex-col gap-1.5">
       <FieldLabel
         label={label}
         hint={hint}

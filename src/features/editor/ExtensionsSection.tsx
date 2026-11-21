@@ -53,7 +53,7 @@ function OtherExtensions() {
 
   const dirty = draft !== serialized
   return (
-    <div className="flex flex-col gap-1.5">
+    <div id="other-extensions" className="flex flex-col gap-1.5">
       <FieldLabel
         label={`其他扩展数据（${Object.keys(others).length} 项）`}
         hint="其他插件写进卡里的数据，例如酒馆助手脚本。这里按 JSON 原样编辑，改完点“应用”。"

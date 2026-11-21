@@ -166,12 +166,19 @@ function ScriptDetail({ script, index }: { script: RegexScript; index: number })
   )
 }
 
-export function RegexPanel() {
+/** focus：从外面跳到第几个正则；nonce 变了才会再跳 */
+export function RegexPanel({ focus }: { focus?: { index: number; nonce: number } } = {}) {
   const scripts = useCardDoc((s) => {
     const list = (s.doc?.card.data.extensions as JsonObject | undefined)?.regex_scripts
     return Array.isArray(list) ? (list as RegexScript[]) : EMPTY
   })
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [focusNonce, setFocusNonce] = useState<number | null>(null)
+  if (focus && focus.nonce !== focusNonce) {
+    setFocusNonce(focus.nonce)
+    const target = scripts[focus.index]
+    if (target && typeof target.id === 'string') setActiveId(target.id)
+  }
   const activeIndex = scripts.findIndex((s) => s.id === activeId)
   const active = activeIndex >= 0 ? scripts[activeIndex] : scripts[0]
   const index = active ? scripts.indexOf(active) : -1

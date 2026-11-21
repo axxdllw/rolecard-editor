@@ -29,7 +29,10 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { JsonObject, Lorebook } from '@/core/card/types'
+import type { DepLocation } from '@/core/deps/deps'
 import { db, type CardRecord } from '@/db/db'
+import { DependencySheet, DependencySummary } from '@/features/deps/DependencyPanel'
+import { jumpTarget, revealAnchor, useDependencyReport } from '@/features/deps/jump'
 import { PromptPreview } from '@/features/preview/PromptPreview'
 import { QuickEditDialog } from '@/features/quick-edit/QuickEditDialog'
 import { RegexPanel } from '@/features/regex/RegexPanel'
@@ -102,7 +105,11 @@ function Editor({ record }: { record: CardRecord }) {
   const [avatar, setAvatar] = useState<Blob | null>(record.avatar)
   const [cropSource, setCropSource] = useState<Blob | null>(null)
   const [quickOpen, setQuickOpen] = useState(false)
+  const [depsOpen, setDepsOpen] = useState(false)
+  // 依赖体检跳到世界书条目或正则时，交给对应面板去选中
+  const [focus, setFocus] = useState<{ loc: DepLocation; nonce: number } | null>(null)
   const card = useCardDoc((s) => s.doc?.card)
+  const depReport = useDependencyReport(card)
   const entryKeys = useCardDoc((s) => s.doc?.entryKeys ?? EMPTY_KEYS)
   const canUndo = useCardDoc((s) => s.past.length > 0)
   const canRedo = useCardDoc((s) => s.future.length > 0)
@@ -128,6 +135,14 @@ function Editor({ record }: { record: CardRecord }) {
     } catch (error) {
       toast.error(`导出失败：${error instanceof Error ? error.message : String(error)}`)
     }
+  }
+
+  const jumpTo = (loc: DepLocation) => {
+    const target = jumpTarget(loc)
+    setDepsOpen(false)
+    setParams({ tab: target.tab }, { replace: true, state: location.state })
+    setFocus((prev) => ({ loc, nonce: (prev?.nonce ?? 0) + 1 }))
+    if (target.anchor) revealAnchor(target.anchor)
   }
 
   if (!card) return null
@@ -169,6 +184,7 @@ function Editor({ record }: { record: CardRecord }) {
           <div className="flex items-center gap-2">
             <SaveIndicator status={status} />
             {record.sourceFormat === 'copy' && <Badge variant="secondary">副本</Badge>}
+            <DependencySummary report={depReport} onOpen={() => setDepsOpen(true)} />
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1">
@@ -225,7 +241,14 @@ function Editor({ record }: { record: CardRecord }) {
       </div>
 
       <div className={cn('flex flex-1 flex-col gap-4', split && 'grid grid-cols-[minmax(0,1fr)_minmax(420px,42%)] items-start')}>
-        <Tabs value={tab} onValueChange={(v) => setParams({ tab: v }, { replace: true, state: location.state })} className="flex min-w-0 flex-1 flex-col gap-3">
+        <Tabs
+          value={tab}
+          onValueChange={(v) => {
+            setFocus(null)
+            setParams({ tab: v }, { replace: true, state: location.state })
+          }}
+          className="flex min-w-0 flex-1 flex-col gap-3"
+        >
           <TabsList className="sticky top-12 z-20 w-full justify-start overflow-x-auto overflow-y-hidden sm:w-fit">
             <TabsTrigger value="character">角色</TabsTrigger>
             <TabsTrigger value="worldbook">
@@ -240,10 +263,16 @@ function Editor({ record }: { record: CardRecord }) {
             <CharacterTab avatar={avatar} />
           </TabsContent>
           <TabsContent value="worldbook" className="flex flex-col">
-            <WorldbookEditor book={book} keys={entryKeys} update={updateCardBook} mode="card" />
+            <WorldbookEditor
+              book={book}
+              keys={entryKeys}
+              update={updateCardBook}
+              mode="card"
+              focus={focus?.loc.type === 'entry' ? { index: focus.loc.index, nonce: focus.nonce } : undefined}
+            />
           </TabsContent>
           <TabsContent value="regex">
-            <RegexPanel />
+            <RegexPanel focus={focus?.loc.type === 'regex' ? { index: focus.loc.index, nonce: focus.nonce } : undefined} />
           </TabsContent>
           <TabsContent value="preview">
             <PromptPreview card={card} />
@@ -269,6 +298,7 @@ function Editor({ record }: { record: CardRecord }) {
       )}
 
       <QuickEditDialog open={quickOpen} onOpenChange={setQuickOpen} />
+      <DependencySheet open={depsOpen} onOpenChange={setDepsOpen} report={depReport} onJump={jumpTo} />
       <CropDialog
         source={cropSource}
         onCancel={() => setCropSource(null)}

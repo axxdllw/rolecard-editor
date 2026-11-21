@@ -61,6 +61,7 @@ function GreetingItem({
 
   return (
     <div
+      id={id}
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={isDragging ? 'relative z-10 opacity-80' : undefined}
@@ -135,7 +136,7 @@ export function GreetingsSection({ avatar }: { avatar: Blob | null }) {
         </div>
       }
     >
-      <div className="flex flex-col gap-1.5">
+      <div id="field-data-first_mes" className="flex flex-col gap-1.5">
         <FieldLabel label="主开场白" hint="first_mes：新建聊天时默认显示" extra={<TokenBadge text={firstMes} />} />
         {preview ? (
           <ChatPreview text={firstMes} charName={charName} userName={userName} avatar={avatar} />
@@ -165,7 +166,7 @@ export function GreetingsSection({ avatar }: { avatar: Blob | null }) {
       <div className="flex flex-col gap-2 border-t pt-3">
         <FieldLabel label={`群聊专用开场白（${groupGreetings.length}）`} hint="group_only_greetings：只在群聊里使用的开场白（V3 新增）" />
         {groupGreetings.map((text, i) => (
-          <div key={i} className="flex gap-2">
+          <div key={i} id={`group-greeting-${i}`} className="flex gap-2">
             <div className="flex-1">
               <TextEditor
                 value={text}

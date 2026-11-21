@@ -56,9 +56,11 @@ export interface WorldbookEditorProps {
   /** 世界书库里的书自身的 id（合并时排除自己） */
   libraryId?: string
   headerExtra?: ReactNode
+  /** 从外面跳到某个条目；nonce 变了才会再跳 */
+  focus?: { index: number; nonce: number }
 }
 
-export function WorldbookEditor({ book, keys, update, mode, libraryId, headerExtra }: WorldbookEditorProps) {
+export function WorldbookEditor({ book, keys, update, mode, libraryId, headerExtra, focus }: WorldbookEditorProps) {
   const isDesktop = useIsDesktop()
   const budget = useSettings((s) => s.constantTokenBudget)
   const tokenizerReady = useTokenizerReady()
@@ -72,6 +74,16 @@ export function WorldbookEditor({ book, keys, update, mode, libraryId, headerExt
   const [wrapperOpen, setWrapperOpen] = useState(false)
   const [mergeOpen, setMergeOpen] = useState(false)
   const [copyKeys, setCopyKeys] = useState<string[] | null>(null)
+  const [focusNonce, setFocusNonce] = useState<number | null>(null)
+  if (focus && focus.nonce !== focusNonce) {
+    setFocusNonce(focus.nonce)
+    const key = keys[focus.index]
+    if (key) {
+      setFilter('all')
+      setQuery('')
+      setActiveKey(key)
+    }
+  }
 
   const entries = useMemo(() => book?.entries ?? [], [book])
   const outletNames = useMemo(() => collectOutletNames(entries), [entries])
