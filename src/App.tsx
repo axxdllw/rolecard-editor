@@ -1,4 +1,4 @@
-import { BookOpenIcon, LibraryIcon, SettingsIcon } from 'lucide-react'
+import { BookOpenIcon, LibraryIcon, ScrollTextIcon, SettingsIcon } from 'lucide-react'
 import { lazy, Suspense, useEffect } from 'react'
 import { HashRouter, NavLink, Route, Routes } from 'react-router'
 import { toast } from 'sonner'
@@ -16,10 +16,13 @@ const CardEditorPage = lazy(() => import('@/features/editor/CardEditorPage'))
 const LorebookLibraryPage = lazy(() => import('@/features/lorebook-library/LorebookLibraryPage'))
 const LorebookEditorPage = lazy(() => import('@/features/lorebook-library/LorebookEditorPage'))
 const SettingsPage = lazy(() => import('@/features/settings/SettingsPage'))
+const NovelListPage = lazy(() => import('@/features/novel/NovelListPage'))
+const NovelPage = lazy(() => import('@/features/novel/NovelPage'))
 
 const NAV = [
   { to: '/', label: '卡库', icon: LibraryIcon, end: true },
   { to: '/lorebooks', label: '世界书库', icon: BookOpenIcon, end: false },
+  { to: '/novels', label: '小说转卡', icon: ScrollTextIcon, end: false },
   { to: '/settings', label: '设置', icon: SettingsIcon, end: false },
 ]
 
@@ -72,6 +75,8 @@ export default function App() {
               <Route path="/card/:id" element={<CardEditorPage />} />
               <Route path="/lorebooks" element={<LorebookLibraryPage />} />
               <Route path="/lorebook/:id" element={<LorebookEditorPage />} />
+              <Route path="/novels" element={<NovelListPage />} />
+              <Route path="/novels/:id" element={<NovelPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="*" element={<p className="p-10 text-center">页面不存在</p>} />
             </Routes>

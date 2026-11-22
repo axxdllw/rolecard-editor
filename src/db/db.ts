@@ -3,7 +3,11 @@
  * 卡片原样保存完整的 V3 JSON，头像以 PNG Blob 保存。
  */
 import Dexie, { type EntityTable } from 'dexie'
+import type { GeneratedEntry } from '@/core/ai/tasks/lorebookGen'
+import type { ReasoningEffort } from '@/core/ai/types'
 import type { CharacterCardV3, Lorebook } from '@/core/card/types'
+import type { NovelCardDraft, NovelCardMode } from '@/core/novel/generate'
+import type { ChunkExtraction, NovelChapter, ReviewOverrides } from '@/core/novel/types'
 
 export interface CardStats {
   entries: number
@@ -117,12 +121,108 @@ export interface AssistantChatRecord {
   updatedAt: number
 }
 
+/** 小说转卡：抽取设置 */
+export interface NovelSettings {
+  /** 每块大约多少字 */
+  chunkChars: number
+  /** 全书均匀抽样多少块（0 不抽样） */
+  sampleCount: number
+  /** 同时发几个请求 */
+  concurrency: number
+  /** 思考强度：profile 跟随接口设置 */
+  reasoningEffort: 'profile' | ReasoningEffort
+  /** 用哪个 AI 接口（null 用当前接口） */
+  profileId: string | null
+}
+
+/** 小说转卡：生成卡的表单 */
+export interface NovelGenerateSettings {
+  mode: NovelCardMode
+  /** 单角色卡的主角：名字键（kind:规范化名字） */
+  mainKey: string | null
+  /** 时间点：块的 id（ChunkPlan.id）；null 表示最后一块 */
+  timePoint: string | null
+  /** {{user}} 的身份 */
+  userRole: string
+  /** 描述写法：DESCRIPTION_TEMPLATES 的 id 或 `custom:${id}` */
+  template: string
+  greetings: number
+  instruction: string
+  /** 前情提要放进世界书（常驻） */
+  storyEntry: boolean
+  /** 世界观总述放进世界书（常驻） */
+  worldEntry: boolean
+  /** 世界卡的名字（空则用书名） */
+  worldName: string
+}
+
+/** 小说转卡：最近一次生成的结果（离开页面再回来还在） */
+export interface NovelGeneratedResult {
+  draft: NovelCardDraft | null
+  /** 合成好的世界书条目；sourceKey 是对应对象的名字键，世界观为 'world' */
+  entries: Array<GeneratedEntry & { sourceKey: string }>
+  /** 合成失败的对象名字键（可以单独重试） */
+  failedKeys: string[]
+  createdAt: number
+}
+
+/** 一本导入的小说（转卡项目）。正文单独存在 novelTexts，抽取结果在 novelChunks */
+export interface NovelRecord {
+  id: string
+  title: string
+  author: string
+  /** 书的格式（BookFormat） */
+  format: string
+  fileName: string
+  fileSize: number
+  /** 识别出的正文编码（txt 等） */
+  encoding?: string
+  /** 解析时的提示 */
+  warnings: string[]
+  /** 章节目录（不含正文） */
+  toc: Array<{ title: string; volume?: string; chars: number }>
+  totalChars: number
+  /** 选中要精读的章节下标 */
+  selected: number[]
+  settings: NovelSettings
+  review: ReviewOverrides
+  generate: NovelGenerateSettings
+  result?: NovelGeneratedResult
+  /** 用这本书建过的卡 */
+  cardIds: string[]
+  createdAt: number
+  updatedAt: number
+}
+
+export interface NovelTextRecord {
+  novelId: string
+  chapters: NovelChapter[]
+}
+
+/** 一块的抽取结果；块按 ChunkPlan.id 标识，范围变了对不上的旧结果留着不用 */
+export interface NovelChunkRecord {
+  /** `${novelId}|${planId}` */
+  id: string
+  novelId: string
+  planId: string
+  label: string
+  sampled: boolean
+  chars: number
+  status: 'done' | 'error'
+  extraction?: ChunkExtraction
+  error?: string
+  updatedAt: number
+}
+
 export const db = new Dexie('role-card-editor') as Dexie & {
   cards: EntityTable<CardRecord, 'id'>
   lorebooks: EntityTable<LorebookRecord, 'id'>
   originals: EntityTable<CardOriginalRecord, 'cardId'>
   assistantChats: EntityTable<AssistantChatRecord, 'cardId'>
   snapshots: EntityTable<CardSnapshotRecord, 'id'>
+  novels: EntityTable<NovelRecord, 'id'>
+  novelTexts: EntityTable<NovelTextRecord, 'novelId'>
+  novelChunks: EntityTable<NovelChunkRecord, 'id'>
 }
 
 db.version(1).stores({
@@ -140,4 +240,11 @@ db.version(3).stores({
 
 db.version(4).stores({
   snapshots: 'id, cardId',
+})
+
+// 小说转卡（不进整库备份：正文很大，可以重新导入）
+db.version(5).stores({
+  novels: 'id, updatedAt',
+  novelTexts: 'novelId',
+  novelChunks: 'id, novelId',
 })
