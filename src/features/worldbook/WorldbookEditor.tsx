@@ -7,6 +7,7 @@ import {
   MoreHorizontalIcon,
   PlusIcon,
   SearchIcon,
+  SparklesIcon,
   UploadIcon,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -25,11 +26,13 @@ import {
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { generatedToEntries } from '@/core/ai/tasks/lorebookGen'
 import { createWrapperEntries, ENTRY_TEMPLATES } from '@/core/card/create'
 import type { Lorebook, LorebookEntry } from '@/core/card/types'
 import { collectOutletNames, createEntry, entryTitle, getDisplayIndex, getOrder, getPosition, getStrategy, POSITION_OPTIONS } from '@/core/lorebook/entry'
 import { lintLorebook, type LintIssue } from '@/core/lorebook/lint'
 import { parseLorebookJson } from '@/core/lorebook/world'
+import { AiLorebookDialog } from '@/features/ai/AiLorebookDialog'
 import { cardRewriteContext } from '@/features/ai/cardContext'
 import { useCardDoc, type BookDraft } from '@/features/editor/cardDoc'
 import type { UpdateOptions } from '@/features/editor/docStore'
@@ -74,6 +77,7 @@ export function WorldbookEditor({ book, keys, update, mode, libraryId, headerExt
   const [lintOpen, setLintOpen] = useState(false)
   const [wrapperOpen, setWrapperOpen] = useState(false)
   const [mergeOpen, setMergeOpen] = useState(false)
+  const [aiOpen, setAiOpen] = useState(false)
   const [copyKeys, setCopyKeys] = useState<string[] | null>(null)
   const [focusNonce, setFocusNonce] = useState<number | null>(null)
   if (focus && focus.nonce !== focusNonce) {
@@ -355,6 +359,13 @@ export function WorldbookEditor({ book, keys, update, mode, libraryId, headerExt
               <span>包裹标签</span>
               <span className="text-xs text-muted-foreground">用一对 &lt;标签&gt; 把一组条目包起来</span>
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setAiOpen(true)} className="flex-col items-start gap-0">
+              <span className="flex items-center gap-1">
+                <SparklesIcon className="size-3.5" /> AI 生成条目
+              </span>
+              <span className="text-xs text-muted-foreground">从设定或小说片段里整理出一批条目</span>
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
         <DropdownMenu>
@@ -500,6 +511,26 @@ export function WorldbookEditor({ book, keys, update, mode, libraryId, headerExt
             insertEntry(d, close)
           }, { label: '添加包裹标签' })
           toast.success(`已添加 <${o.tag}> 和 </${o.tag}>`)
+        }}
+      />
+      <AiLorebookDialog
+        open={aiOpen}
+        onOpenChange={setAiOpen}
+        existingTitles={entries.map((e, i) => entryTitle(e, i))}
+        getContext={mode === 'card' ? () => cardRewriteContext(useCardDoc.getState().doc?.card) : undefined}
+        getCardSource={
+          mode === 'card'
+            ? () => {
+                const data = useCardDoc.getState().doc?.card.data
+                return [data?.description, data?.scenario].filter((t) => typeof t === 'string' && t.trim()).join('\n\n')
+              }
+            : undefined
+        }
+        onAdd={(generated) => {
+          let added: string[] = []
+          update((d) => void (added = appendEntries(d, generatedToEntries(generated, d.book.entries as LorebookEntry[]))), { label: 'AI 生成条目' })
+          if (added[0]) setActiveKey(added[0])
+          toast.success(`已添加 ${added.length} 个条目，可以撤销`)
         }}
       />
       <PickLorebookDialog
