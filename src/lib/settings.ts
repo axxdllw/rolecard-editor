@@ -3,6 +3,7 @@
  */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { DEFAULT_SCAN_SETTINGS, type ScanSettings } from '@/core/lorebook/activate'
 
 export type LibrarySort = 'updatedAt' | 'createdAt' | 'name'
 export type LibraryView = 'grid' | 'list'
@@ -29,6 +30,10 @@ interface SettingsState {
   renderPanelOpen: boolean
   /** 编辑页侧栏当前面板 */
   sidePanelTab: SidePanelTab
+  /** 提示词预览里哪些世界书条目算作触发；切换标签后保持 */
+  promptPreviewMode: 'constant' | 'all' | 'simulate'
+  /** 世界书触发模拟的扫描设置（对照酒馆的世界书全局设置） */
+  scanSettings: ScanSettings
   set: (patch: Partial<Omit<SettingsState, 'set'>>) => void
 }
 
@@ -43,6 +48,8 @@ export const useSettings = create<SettingsState>()(
       customTemplates: [],
       renderPanelOpen: false,
       sidePanelTab: 'render',
+      promptPreviewMode: 'constant',
+      scanSettings: DEFAULT_SCAN_SETTINGS,
       set: (patch) => set(patch),
     }),
     { name: 'rce-settings' },

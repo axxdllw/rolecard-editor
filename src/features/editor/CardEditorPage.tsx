@@ -327,7 +327,7 @@ function Editor({ record }: { record: CardRecord }) {
             </Suspense>
           </TabsContent>
           <TabsContent value="preview">
-            <PromptPreview card={card} />
+            <PromptPreview card={card} cardId={record.id} onJumpToEntry={(index) => jumpTo({ type: 'entry', index, title: '', enabled: true })} />
           </TabsContent>
         </Tabs>
         {split && (

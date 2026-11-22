@@ -30,6 +30,14 @@ export interface CardPreviewData {
   runScripts?: boolean
 }
 
+/** 提示词预览里“模拟聊天”的测试数据，只存在本地库里，不写进卡 */
+export interface CardScanTestData {
+  /** 聊天开头带哪条开场白：-1 不带，0 主开场白，1..N 备选开场白 */
+  greeting: number
+  /** 开场白之后的消息，从旧到新 */
+  messages: Array<{ role: 'user' | 'char'; text: string }>
+}
+
 export interface CardRecord {
   id: string
   card: CharacterCardV3
@@ -46,6 +54,7 @@ export interface CardRecord {
   fileName: string
   stats: CardStats
   preview?: CardPreviewData
+  scanTest?: CardScanTestData
   createdAt: number
   updatedAt: number
 }

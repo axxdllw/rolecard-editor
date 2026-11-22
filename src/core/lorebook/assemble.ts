@@ -8,6 +8,7 @@
 import type { CharacterCardV3, JsonObject, Lorebook, LorebookEntry } from '../card/types'
 import { findOutletRefs, substituteMacros, type MacroContext } from '../macros'
 import { regexFromString } from '../regex/regex'
+import { parseDecorators } from './activate'
 import {
   entryTitle,
   getDepth,
@@ -23,13 +24,15 @@ import {
   ROLE_OPTIONS,
 } from './entry'
 
-/** constant：只看常驻；all：把所有关键词条目当作已触发；match：用测试文本匹配关键词 */
-export type ActivationMode = 'constant' | 'all' | 'match'
+/** constant：只看常驻；all：把所有关键词条目当作已触发；match：用测试文本匹配关键词；simulate：按模拟结果激活 */
+export type ActivationMode = 'constant' | 'all' | 'match' | 'simulate'
 
 export interface AssembleOptions {
   mode: ActivationMode
   /** match 模式下用来匹配关键词的文本 */
   chatText?: string
+  /** simulate 模式下由模拟引擎给出的激活条目下标 */
+  simulated?: { activated: number[] }
   macros: MacroContext
 }
 
@@ -95,6 +98,23 @@ export interface ActiveEntry {
 
 export function activeEntries(book: Lorebook | undefined, options: AssembleOptions): ActiveEntry[] {
   if (!book) return []
+  if (options.mode === 'simulate') {
+    const activated = options.simulated?.activated ?? []
+    const out: ActiveEntry[] = []
+    const seen = new Set<number>()
+    for (const index of activated) {
+      if (seen.has(index)) continue
+      const entry = book.entries[index]
+      if (!entry) continue
+      seen.add(index)
+      out.push({
+        index,
+        entry,
+        source: entry.constant ? 'constant' : 'triggered',
+      })
+    }
+    return out
+  }
   const out: ActiveEntry[] = []
   book.entries.forEach((entry, index) => {
     if (entry.enabled === false) return
@@ -123,13 +143,22 @@ function sortByOrderDesc(list: ActiveEntry[]): ActiveEntry[] {
   return [...list].sort((a, b) => getOrder(b.entry) - getOrder(a.entry) || a.index - b.index)
 }
 
-function toBlocks(list: ActiveEntry[], macros: MacroContext, sort: (list: ActiveEntry[]) => ActiveEntry[] = sortByOrder): AssembledBlock[] {
-  return sort(list).map(({ entry, index, source }) => ({
-    title: entryTitle(entry, index),
-    content: substituteMacros(entry.content ?? '', macros),
-    kind: source,
-    entryIndex: index,
-  }))
+function toBlocks(
+  list: ActiveEntry[],
+  macros: MacroContext,
+  sort: (list: ActiveEntry[]) => ActiveEntry[] = sortByOrder,
+  stripDecorators = false,
+): AssembledBlock[] {
+  return sort(list).map(({ entry, index, source }) => {
+    const rawContent = entry.content ?? ''
+    const content = stripDecorators ? parseDecorators(rawContent)[1] : rawContent
+    return {
+      title: entryTitle(entry, index),
+      content: substituteMacros(content, macros),
+      kind: source,
+      entryIndex: index,
+    }
+  })
 }
 
 /**
@@ -168,6 +197,7 @@ function outletGroups(active: ActiveEntry[]): Array<{ name: string; items: Activ
 
 export function assemblePrompt(card: CharacterCardV3, options: AssembleOptions): AssembledSection[] {
   const { macros } = options
+  const strip = options.mode === 'simulate'
   const data = card.data
   const active = activeEntries(data.character_book, options)
   const at = (position: number) => active.filter((a) => getPosition(a.entry) === position)
@@ -183,7 +213,7 @@ export function assemblePrompt(card: CharacterCardV3, options: AssembleOptions):
     hint: '只有开启“优先使用角色卡里的提示词”时才会替换主提示词',
     blocks: cardBlock('system_prompt', data.system_prompt, macros),
   })
-  push({ id: 'wi-before', title: '世界书 · 角色定义前', blocks: toBlocks(at(0), macros) })
+  push({ id: 'wi-before', title: '世界书 · 角色定义前', blocks: toBlocks(at(0), macros, sortByOrder, strip) })
   push({
     id: 'char',
     title: '角色定义',
@@ -193,11 +223,15 @@ export function assemblePrompt(card: CharacterCardV3, options: AssembleOptions):
       ...cardBlock('场景', data.scenario, macros),
     ],
   })
-  push({ id: 'wi-after', title: '世界书 · 角色定义后', blocks: toBlocks(at(1), macros) })
+  push({ id: 'wi-after', title: '世界书 · 角色定义后', blocks: toBlocks(at(1), macros, sortByOrder, strip) })
   push({
     id: 'examples',
     title: '示例对话',
-    blocks: [...toBlocks(at(5), macros), ...cardBlock('示例对话', data.mes_example, macros), ...toBlocks(at(6), macros)],
+    blocks: [
+      ...toBlocks(at(5), macros, sortByOrder, strip),
+      ...cardBlock('示例对话', data.mes_example, macros),
+      ...toBlocks(at(6), macros, sortByOrder, strip),
+    ],
   })
 
   // 聊天记录：@depth 条目、作者注释、角色注释
@@ -223,7 +257,7 @@ export function assemblePrompt(card: CharacterCardV3, options: AssembleOptions):
       content: '',
       kind: 'note',
     })
-    chatBlocks.push(...toBlocks(g.items, macros))
+    chatBlocks.push(...toBlocks(g.items, macros, sortByOrder, strip))
   }
   if (notePrompt && depthPrompt) {
     const depth = typeof depthPrompt.depth === 'number' ? depthPrompt.depth : 4
@@ -235,9 +269,9 @@ export function assemblePrompt(card: CharacterCardV3, options: AssembleOptions):
   const anBottom = at(3)
   if (anTop.length + anBottom.length > 0) {
     chatBlocks.push({ title: '作者注释（深度由聊天设置决定）', content: '', kind: 'note' })
-    chatBlocks.push(...toBlocks(anTop, macros))
+    chatBlocks.push(...toBlocks(anTop, macros, sortByOrder, strip))
     chatBlocks.push({ title: '〔作者注释正文〕', content: '', kind: 'note' })
-    chatBlocks.push(...toBlocks(anBottom, macros))
+    chatBlocks.push(...toBlocks(anBottom, macros, sortByOrder, strip))
   }
   push({
     id: 'chat',
@@ -258,7 +292,7 @@ export function assemblePrompt(card: CharacterCardV3, options: AssembleOptions):
     hint: '不会自动插入，在预设的提示词里写 {{outlet::锚点名}} 的地方展开。同一锚点里顺序大的在前（与其他位置相反，按酒馆 1.16 的实际拼接）',
     blocks: outletGroups(active).flatMap(({ name, items }) => [
       { title: `{{outlet::${name}}}`, content: '', kind: 'note' as const },
-      ...toBlocks(items, macros, sortByOrderDesc),
+      ...toBlocks(items, macros, sortByOrderDesc, strip),
     ]),
   })
 
