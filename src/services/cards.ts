@@ -2,9 +2,11 @@
  * 卡库服务：导入、新建、复制、保存、导出、删除。
  */
 import { zipSync } from 'fflate'
+import { applyDraftToCard, type DraftCard, type DraftFieldKey } from '@/core/ai/tasks/draftCard'
 import { parseCharx } from '@/core/card/charx'
 import { createEmptyCard, type DescriptionTemplate } from '@/core/card/create'
 import { CardParseError, parseCardJson, parseCardPng, serializeCardJson, stripCardPng, writeCardPng, type ParsedCard } from '@/core/card/io'
+import { syncLegacyMirror } from '@/core/card/mirror'
 import type { CharacterCardV3 } from '@/core/card/types'
 import { constantPromptTexts } from '@/core/lorebook/assemble'
 import { getRegexScripts } from '@/core/regex/regex'
@@ -161,6 +163,22 @@ export async function createCard(
   descriptionOverride?: string,
 ): Promise<string> {
   const record = newRecord(createEmptyCard(name, templateId, descriptionOverride), avatar, { sourceFormat: 'new' })
+  await db.cards.add(record)
+  return record.id
+}
+
+/** 用 AI 生成的草稿新建一张卡：先按描述写法建空卡，再写入勾选的草稿项 */
+export async function createCardFromDraft(
+  name: string,
+  templateId: DescriptionTemplate['id'],
+  avatar: Blob | null,
+  draft: DraftCard,
+  fields: ReadonlySet<DraftFieldKey>,
+): Promise<string> {
+  const card = createEmptyCard(name, templateId)
+  applyDraftToCard(card, draft, fields)
+  syncLegacyMirror(card)
+  const record = newRecord(card, avatar, { sourceFormat: 'new' })
   await db.cards.add(record)
   return record.id
 }
