@@ -37,6 +37,14 @@ npm run build      # 打包到 dist/，可直接部署到任意静态托管
 
 更新酒馆助手接口补全数据：`node scripts/gen-th-api.mjs <JS-Slash-Runner 目录>`
 
+部署到自己的服务器（介绍页 `site/` 放在根目录，编辑器放在 `/app/`；服务器上的 nginx 容器配置见 `deploy/`，放在 `/opt/rolecard`）：
+
+```bash
+DEPLOY_HOST=user@服务器 DEPLOY_PORT=22 bash scripts/deploy.sh   # 构建并上传，切换到新版本，保留最近 5 版
+```
+
+HTTPS 证书由服务器上的 acme.sh 申请（Let's Encrypt IP 证书，shortlived 约 6 天，cron 自动续期并重载 nginx 容器）。没有 HTTPS 时 PWA 离线、剪贴板和持久存储申请都用不了。
+
 ## 目录
 
 | 路径 | 内容 |
@@ -57,6 +65,8 @@ npm run build      # 打包到 dist/，可直接部署到任意静态托管
 | `src/features/` | 各页面：卡库、角色编辑、世界书、正则、酒馆助手脚本、快捷修改、预览、世界书库、小说转卡、设置 |
 | `src/components/` | 通用组件（文本编辑器、代码编辑器、标签输入、裁剪等）和 shadcn/ui |
 | `tests/` | Vitest 测试 |
+| `site/` | 试用介绍页（单个静态 HTML，部署在站点根目录） |
+| `deploy/` | 服务器上的 nginx 容器配置（compose、站点配置） |
 | `samples/` | 测试用样本卡（第三方作品，不入库；本地放入 `samples/弗洛洛2.png` 后运行相关用例） |
 
 ## 约定
