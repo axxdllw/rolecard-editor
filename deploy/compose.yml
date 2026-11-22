@@ -1,0 +1,16 @@
+# 角色卡编辑器静态站：介绍页在 /，编辑器在 /app/
+# 服务器上放在 /opt/rolecard，与 www/、acme/、certs/、nginx/ 同级
+services:
+  web:
+    image: nginx:alpine
+    container_name: rolecard-web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./www:/usr/share/nginx/html:ro
+      - ./acme:/var/www/acme:ro
+      - ./certs:/etc/nginx/certs:ro
+      - ./nginx:/etc/nginx/conf.d:ro
+    mem_limit: 64m
