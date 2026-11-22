@@ -19,7 +19,11 @@ export interface AiProfile {
   model: string
   /** 最大输出 token；不填时 openai/gemini 不传，anthropic 用 DEFAULT_ANTHROPIC_MAX_TOKENS */
   maxTokens?: number
+  /** 思考强度；不填时不传，由模型决定。目前只对 OpenAI 兼容接口生效（reasoning_effort） */
+  reasoningEffort?: ReasoningEffort
 }
+
+export type ReasoningEffort = 'low' | 'medium' | 'high'
 
 export const DEFAULT_BASE_URL: Record<AiProviderKind, string> = {
   openai: 'https://api.openai.com/v1',
@@ -46,6 +50,8 @@ export interface AiRequest {
   messages: AiMessage[]
   /** 要求只输出 JSON：openai 传 response_format，gemini 传 responseMimeType，anthropic 只靠提示词 */
   json?: boolean
+  /** 这次请求的思考强度，覆盖接口设置里的（比如小说抽取默认用低强度省钱） */
+  reasoningEffort?: ReasoningEffort
   signal?: AbortSignal
   /** 每收到一段文本调用一次；full 是到目前为止的全文 */
   onText?: (delta: string, full: string) => void

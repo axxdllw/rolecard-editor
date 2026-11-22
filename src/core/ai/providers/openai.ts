@@ -68,6 +68,11 @@ export const openaiProvider: AiProvider = {
     if (request.json) {
       body.response_format = { type: 'json_object' }
     }
+    // 不支持的模型会报错，所以只在设置了时才传
+    const effort = request.reasoningEffort ?? profile.reasoningEffort
+    if (effort) {
+      body.reasoning_effort = effort
+    }
 
     let full = ''
     let finishReason: AiFinishReason | undefined

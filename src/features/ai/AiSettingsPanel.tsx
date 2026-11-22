@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { listModels, streamChat } from '@/core/ai/client'
-import { AiError, DEFAULT_BASE_URL, type AiProfile, type AiProviderKind } from '@/core/ai/types'
+import { AiError, DEFAULT_BASE_URL, type AiProfile, type AiProviderKind, type ReasoningEffort } from '@/core/ai/types'
 import { PROVIDER_LABELS, useAiSettings } from '@/lib/aiSettings'
 import { cn } from '@/lib/utils'
 
@@ -139,6 +139,26 @@ function ProfileForm({ profile }: { profile: AiProfile }) {
             onChange={(e) => update({ maxTokens: e.target.value ? Number(e.target.value) || undefined : undefined })}
           />
         </div>
+        {profile.kind === 'openai' && (
+          <div className="flex flex-col gap-1.5">
+            <Label>思考强度</Label>
+            <Select
+              value={profile.reasoningEffort ?? 'default'}
+              onValueChange={(v) => update({ reasoningEffort: v === 'default' ? undefined : (v as ReasoningEffort) })}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">不传（由模型决定）</SelectItem>
+                <SelectItem value="low">低（快、省）</SelectItem>
+                <SelectItem value="medium">中</SelectItem>
+                <SelectItem value="high">高</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">思考模型才支持；模型不认这个参数时会报错，改回“不传”即可</p>
+          </div>
+        )}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="outline" size="sm" onClick={fetchModels} disabled={busy !== null}>
