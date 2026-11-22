@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { createEmptyCard, createWrapperEntries } from '../../src/core/card/create'
 import { parseCardJson, parseCardPng, serializeCardJson, writeCardPng } from '../../src/core/card/io'
@@ -19,6 +17,7 @@ import {
 import { lintLorebook } from '../../src/core/lorebook/lint'
 import { lorebookToWorld, parseLorebookJson } from '../../src/core/lorebook/world'
 import { findOutletRefs } from '../../src/core/macros'
+import { plainPng } from '../sample'
 
 const macros = { char: '弗洛洛', user: '漂泊者' }
 
@@ -128,9 +127,8 @@ describe('锚点条目往返', () => {
   })
 
   it('角色卡 PNG 原样往返', () => {
-    const sample = parseCardPng(new Uint8Array(readFileSync(resolve(import.meta.dirname, '../../samples/弗洛洛2.png'))))
     const card = outletCard()
-    const back = parseCardPng(writeCardPng(sample.image, card)).card
+    const back = parseCardPng(writeCardPng(plainPng, card)).card
     expect(back.data.character_book).toStrictEqual(card.data.character_book)
   })
 

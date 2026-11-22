@@ -25,3 +25,6 @@ dist-ssr
 
 # Claude Code
 .claude
+
+# 测试用样本卡（第三方作品，不入库）
+/samples/

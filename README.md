@@ -21,7 +21,7 @@
 ```bash
 npm install
 npm run dev        # 本地开发，http://localhost:5173
-npm test           # 单元测试（含样本卡往返测试）
+npm test           # 单元测试（样本卡相关用例需本地放好样本卡，否则跳过）
 npm run typecheck  # 类型检查
 npm run lint       # 代码检查（oxlint）
 npm run build      # 打包到 dist/，可直接部署到任意静态托管
@@ -47,7 +47,7 @@ npm run build      # 打包到 dist/，可直接部署到任意静态托管
 | `src/features/` | 各页面：卡库、角色编辑、世界书、正则、酒馆助手脚本、快捷修改、预览、世界书库、设置 |
 | `src/components/` | 通用组件（文本编辑器、代码编辑器、标签输入、裁剪等）和 shadcn/ui |
 | `tests/` | Vitest 测试 |
-| `samples/` | 测试用样本卡 |
+| `samples/` | 测试用样本卡（第三方作品，不入库；本地放入 `samples/弗洛洛2.png` 后运行相关用例） |
 
 ## 约定
 

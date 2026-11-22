@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parseCardPng } from '../../src/core/card/io'
 import { createWrapperEntries } from '../../src/core/card/create'
@@ -8,9 +6,10 @@ import { assemblePrompt, entryMatchesText } from '../../src/core/lorebook/assemb
 import { createEntry, getPosition, nextEntryId, setPosition, setStrategy, getStrategy } from '../../src/core/lorebook/entry'
 import { lintLorebook } from '../../src/core/lorebook/lint'
 import { lorebookToWorld, parseLorebookJson, worldToLorebook } from '../../src/core/lorebook/world'
+import { describeWithSample, hasSample, itWithSample, sampleBytes } from '../sample'
 
-const sample = parseCardPng(new Uint8Array(readFileSync(resolve(import.meta.dirname, '../../samples/弗洛洛2.png'))))
-const book = sample.card.data.character_book as Lorebook
+const sample = hasSample ? parseCardPng(sampleBytes) : undefined
+const book = sample?.card.data.character_book as Lorebook
 const macros = { char: '弗洛洛', user: '漂泊者' }
 const byComment = (comment: string) => book.entries.findIndex((e) => e.comment === comment)
 
@@ -34,12 +33,12 @@ describe('条目读写', () => {
     expect(getStrategy(e)).toBe('keyword')
   })
 
-  it('新条目 id 接在最大 id 后面', () => {
+  itWithSample('新条目 id 接在最大 id 后面', () => {
     expect(nextEntryId(book.entries)).toBe(121)
   })
 })
 
-describe('ST 世界书格式转换', () => {
+describeWithSample('ST 世界书格式转换', () => {
   it('内嵌世界书 → ST 世界书 → 内嵌世界书，关键字段不变', () => {
     const world = lorebookToWorld(book)
     expect(Object.keys(world.entries)).toHaveLength(121)
@@ -61,15 +60,15 @@ describe('ST 世界书格式转换', () => {
   it('识别三种来源格式', () => {
     expect(parseLorebookJson(JSON.stringify(lorebookToWorld(book))).format).toBe('st-world')
     expect(parseLorebookJson(JSON.stringify(book)).format).toBe('character-book')
-    const fromCard = parseLorebookJson(JSON.stringify(sample.card))
+    const fromCard = parseLorebookJson(JSON.stringify(sample!.card))
     expect(fromCard.format).toBe('card')
     expect(fromCard.book.entries).toHaveLength(121)
   })
 })
 
-describe('提示词组装预览', () => {
+describeWithSample('提示词组装预览', () => {
   it('只看常驻时，角色定义前按顺序排列，包裹标签在首尾', () => {
-    const sections = assemblePrompt(sample.card, { mode: 'constant', macros })
+    const sections = assemblePrompt(sample!.card, { mode: 'constant', macros })
     const before = sections.find((s) => s.id === 'wi-before')!
     expect(before.blocks.map((b) => b.content)).toEqual([
       '<Glossary>',
@@ -86,7 +85,7 @@ describe('提示词组装预览', () => {
   })
 
   it('关键词匹配：提到“秧秧”时触发秧秧条目', () => {
-    const sections = assemblePrompt(sample.card, { mode: 'match', chatText: '今天遇到了秧秧', macros })
+    const sections = assemblePrompt(sample!.card, { mode: 'match', chatText: '今天遇到了秧秧', macros })
     const before = sections.find((s) => s.id === 'wi-before')!
     expect(before.blocks.some((b) => b.title === '秧秧' && b.kind === 'triggered')).toBe(true)
   })
@@ -99,30 +98,30 @@ describe('提示词组装预览', () => {
 })
 
 describe('自动检查', () => {
-  const issues = lintLorebook(book)
+  const issues = hasSample ? lintLorebook(book) : []
 
-  it('发现放错位置的条目（菲比、泰缇斯系统）', () => {
+  itWithSample('发现放错位置的条目（菲比、泰缇斯系统）', () => {
     const misplaced = issues.filter((i) => i.code === 'wrapper-misplaced')
     const flagged = misplaced.map((i) => book.entries[i.entryIndexes[0]].comment)
     expect(flagged).toEqual(expect.arrayContaining(['菲比', '泰缇斯系统']))
     expect(flagged).not.toContain('弗洛洛行为模式刻画')
   })
 
-  it('发现主次关键词完全相同的条目（广场区与自由广场）', () => {
+  itWithSample('发现主次关键词完全相同的条目（广场区与自由广场）', () => {
     const same = issues.filter((i) => i.code === 'same-trigger')
     expect(same.some((i) => i.entryIndexes.includes(byComment('广场区')) && i.entryIndexes.includes(byComment('自由广场')))).toBe(true)
   })
 
-  it('发现一词多触发和过短关键词', () => {
+  itWithSample('发现一词多触发和过短关键词', () => {
     expect(issues.some((i) => i.code === 'duplicate-key' && i.message.includes('广场'))).toBe(true)
     expect(issues.some((i) => i.code === 'short-key' && i.message.includes('椿'))).toBe(true)
   })
 
-  it('包裹标签都成对，没有误报', () => {
+  itWithSample('包裹标签都成对，没有误报', () => {
     expect(issues.filter((i) => i.code === 'wrapper-unclosed')).toEqual([])
   })
 
-  it('常驻超预算', () => {
+  itWithSample('常驻超预算', () => {
     const over = lintLorebook(book, { constantTokenBudget: 100, tokenCount: (t) => t.length })
     expect(over.some((i) => i.code === 'constant-budget')).toBe(true)
   })

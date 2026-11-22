@@ -1,6 +1,4 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 import {
   CardParseError,
   normalizeToV3,
@@ -9,12 +7,11 @@ import {
   serializeCardJson,
   stripCardPng,
   writeCardPng,
+  type ParsedPngCard,
 } from '../../src/core/card/io'
 import { encodeChunks, getTextEntries, readChunks, replaceTextEntries } from '../../src/core/png/png'
 import { base64ToUtf8 } from '../../src/core/util/base64'
-
-const SAMPLE_PNG = resolve(import.meta.dirname, '../../samples/弗洛洛2.png')
-const sampleBytes = new Uint8Array(readFileSync(SAMPLE_PNG))
+import { describeWithSample, itWithSample, plainPng, sampleBytes } from '../sample'
 
 /** 直接从 PNG 里取出某个文本块的原始 JSON，不经过我们的解析逻辑 */
 function rawCardJson(png: Uint8Array, keyword: string): Record<string, unknown> {
@@ -23,8 +20,11 @@ function rawCardJson(png: Uint8Array, keyword: string): Record<string, unknown> 
   return JSON.parse(base64ToUtf8(entry.text))
 }
 
-describe('样本卡：弗洛洛2.png', () => {
-  const parsed = parseCardPng(sampleBytes)
+describeWithSample('样本卡：弗洛洛2.png', () => {
+  let parsed: ParsedPngCard
+  beforeAll(() => {
+    parsed = parseCardPng(sampleBytes)
+  })
 
   it('读出 V3 数据', () => {
     expect(parsed.chunkKey).toBe('ccv3')
@@ -156,11 +156,11 @@ describe('版本兼容', () => {
 
 describe('异常输入', () => {
   it('没有角色卡数据的 PNG', () => {
-    const plain = encodeChunks(replaceTextEntries(readChunks(sampleBytes), ['chara', 'ccv3'], []))
+    const plain = encodeChunks(replaceTextEntries(readChunks(plainPng), ['chara', 'ccv3'], []))
     expect(() => parseCardPng(plain)).toThrow(CardParseError)
   })
 
-  it('ccv3 损坏时退回读取 chara，并给出提示', () => {
+  itWithSample('ccv3 损坏时退回读取 chara，并给出提示', () => {
     const chunks = readChunks(writeCardPng(sampleBytes, parseCardPng(sampleBytes).card))
     const broken = encodeChunks(replaceTextEntries(chunks, ['ccv3'], [{ keyword: 'ccv3', text: '@@@' }]))
     const parsed = parseCardPng(broken)

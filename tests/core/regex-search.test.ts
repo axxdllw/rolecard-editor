@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { zipSync, strToU8 } from 'fflate'
 import { produce } from 'immer'
 import { describe, expect, it } from 'vitest'
@@ -22,9 +20,10 @@ import {
   findInSlots,
   replacementFor,
 } from '../../src/core/search/search'
+import { hasSample, itWithSample, sampleBytes } from '../sample'
 
 const ctx = { char: '弗洛洛', user: '漂泊者' }
-const sample = parseCardPng(new Uint8Array(readFileSync(resolve(import.meta.dirname, '../../samples/弗洛洛2.png'))))
+const sample = hasSample ? parseCardPng(sampleBytes) : undefined
 
 describe('正则脚本', () => {
   it('解析 /pattern/flags', () => {
@@ -59,27 +58,27 @@ describe('正则脚本', () => {
 })
 
 describe('查找替换', () => {
-  it('能在角色字段、开场白、世界书里找到名字', () => {
+  itWithSample('能在角色字段、开场白、世界书里找到名字', () => {
     const regex = compileQuery({ text: '弗洛洛', useRegex: false, caseSensitive: false })
     if (typeof regex === 'string') throw new Error(regex)
-    const hits = findInSlots(collectTextSlots(sample.card), regex)
+    const hits = findInSlots(collectTextSlots(sample!.card), regex)
     const groups = new Set(hits.map((h) => h.group))
     expect(groups).toEqual(new Set(['角色字段', '开场白', '世界书']))
   })
 
-  it('选中部分命中替换，未选中的保持不变，且能撤销', () => {
+  itWithSample('选中部分命中替换，未选中的保持不变，且能撤销', () => {
     const regex = compileQuery({ text: '弗洛洛', useRegex: false, caseSensitive: false }) as RegExp
-    const hits = findInSlots(collectTextSlots(sample.card), regex)
+    const hits = findInSlots(collectTextSlots(sample!.card), regex)
     const descHits = hits.filter((h) => h.path.join('.') === 'data.description')
     const chosen = descHits.slice(0, 2)
 
-    const next = produce(sample.card, (draft) => {
+    const next = produce(sample!.card, (draft) => {
       applyReplacements(draft, chosen.map((hit) => ({ hit, text: '{{char}}' })))
     })
-    const before = (sample.card.data.description.match(/弗洛洛/g) ?? []).length
+    const before = (sample!.card.data.description.match(/弗洛洛/g) ?? []).length
     const after = (next.data.description.match(/弗洛洛/g) ?? []).length
     expect(before - after).toBe(2)
-    expect(next.data.first_mes).toBe(sample.card.data.first_mes)
+    expect(next.data.first_mes).toBe(sample!.card.data.first_mes)
   })
 
   it('关键词替换成空时从列表删除', () => {
@@ -102,8 +101,8 @@ describe('查找替换', () => {
     expect(replacementFor(hits[0], query, '$1 years')).toBe('18 years')
   })
 
-  it('识别样本卡的各种名字', () => {
-    const names = detectNameCandidates(sample.card).map((c) => c.name)
+  itWithSample('识别样本卡的各种名字', () => {
+    const names = detectNameCandidates(sample!.card).map((c) => c.name)
     expect(names).toEqual(expect.arrayContaining(['弗洛洛', 'Phrolova', 'フロロ', '플로로']))
   })
 })
