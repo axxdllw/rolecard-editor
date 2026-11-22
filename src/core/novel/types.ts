@@ -90,6 +90,16 @@ export interface ChunkExtraction {
   world: string[]
 }
 
+/** 抽取失败时留下的模型回复，让用户自己看出失败原因（被拒绝、被截断、没按格式写等） */
+export interface ChunkFailureOutput {
+  /** 模型回复；太长时只留开头和结尾 */
+  text: string
+  /** 回复的总字数 */
+  chars: number
+  /** 接口返回的结束原因原文，如 stop、max_tokens、SAFETY、RECITATION */
+  finishReason?: string
+}
+
 export type EntityKind = 'character' | 'place' | 'organization' | 'term'
 
 export const ENTITY_KIND_LABELS: Record<EntityKind, string> = {

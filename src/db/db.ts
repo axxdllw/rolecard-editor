@@ -7,7 +7,7 @@ import type { GeneratedEntry } from '@/core/ai/tasks/lorebookGen'
 import type { ReasoningEffort } from '@/core/ai/types'
 import type { CharacterCardV3, Lorebook } from '@/core/card/types'
 import type { NovelCardDraft, NovelCardMode } from '@/core/novel/generate'
-import type { ChunkExtraction, NovelChapter, ReviewOverrides } from '@/core/novel/types'
+import type { ChunkExtraction, ChunkFailureOutput, NovelChapter, ReviewOverrides } from '@/core/novel/types'
 
 export interface CardStats {
   entries: number
@@ -211,6 +211,8 @@ export interface NovelChunkRecord {
   status: 'done' | 'error'
   extraction?: ChunkExtraction
   error?: string
+  /** 失败时模型的回复（没拿到回复的失败，比如断线，没有这项） */
+  errorOutput?: ChunkFailureOutput
   updatedAt: number
 }
 

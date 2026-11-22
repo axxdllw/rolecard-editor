@@ -265,6 +265,57 @@ export function ExtractStep({ novel, records, plans, entities, profile, onGoStep
               )
             }
 
+            // 失败且留下了模型回复：可以展开看模型到底回了什么
+            if (isError && rec?.errorOutput) {
+              const out = rec.errorOutput
+              return (
+                <Collapsible key={plan.id} className="rounded-lg border border-destructive/40 bg-destructive/5">
+                  <div className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm">
+                    <CollapsibleTrigger
+                      className="group flex min-w-0 flex-1 items-center gap-2 text-left"
+                      title="查看模型的回复"
+                    >
+                      <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
+                      <span className="shrink-0 font-medium">{plan.label}</span>
+                      {plan.sampled && (
+                        <Badge variant="secondary" className="shrink-0">
+                          抽样
+                        </Badge>
+                      )}
+                      {rangeTitle && (
+                        <span className="hidden min-w-0 flex-1 truncate text-xs text-muted-foreground sm:inline">
+                          {rangeTitle}
+                        </span>
+                      )}
+                    </CollapsibleTrigger>
+                    <span className="shrink-0 text-xs text-muted-foreground">{formatWanChars(plan.chars)}</span>
+                    <div className="flex w-full items-center justify-between gap-2 pt-1 text-xs text-destructive sm:w-auto sm:pt-0">
+                      <span className="break-words">{rec.error || '抽取失败'}</span>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        disabled={!profile || runnerRunning}
+                        onClick={() => handleStart([plan.id])}
+                      >
+                        <RotateCcwIcon /> 重试
+                      </Button>
+                    </div>
+                  </div>
+                  <CollapsibleContent className="border-t border-destructive/20 px-3 py-2.5 text-xs">
+                    <p className="mb-1.5 text-muted-foreground">
+                      模型的回复：{out.chars > 0 ? `共 ${out.chars} 字` : '没有回复内容'}
+                      {out.finishReason && ` · 结束原因 ${out.finishReason}`}
+                    </p>
+                    {out.text && (
+                      <pre className="max-h-60 overflow-auto rounded-md bg-muted/60 p-2 font-mono text-[11px] leading-relaxed break-all whitespace-pre-wrap text-foreground/80">
+                        {out.text}
+                      </pre>
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
+              )
+            }
+
             return (
               <div
                 key={plan.id}

@@ -9,7 +9,8 @@ import {
   worldToItem,
   type ConsolidateItem,
 } from '../../src/core/novel/consolidate'
-import { buildExtractRequest, formatRoster, parseExtraction } from '../../src/core/novel/extract'
+import type { AiError, AiFinishReason } from '../../src/core/ai/types'
+import { buildExtractRequest, failureOutput, formatRoster, parseExtraction } from '../../src/core/novel/extract'
 import { buildNovelCardRequest, parseNovelCard, toDraftCard } from '../../src/core/novel/generate'
 import { prepareGeneration } from '../../src/core/novel/prepare'
 import {
@@ -204,6 +205,46 @@ describe('parseExtraction', () => {
   it('什么都没有时报错', () => {
     expect(() => parseExtraction('{"characters":[]}')).toThrow()
     expect(() => parseExtraction('不是 JSON')).toThrow()
+  })
+
+  it('解析失败时说清楚原因：截断、文字拒绝、没写 JSON、JSON 残缺', () => {
+    const errorOf = (text: string, finishReason?: AiFinishReason) => {
+      try {
+        parseExtraction(text, finishReason)
+      } catch (e) {
+        return e as AiError
+      }
+      throw new Error('应该解析失败')
+    }
+    const truncated = errorOf('{"summary_of_chunk":"陈恭接头', 'length')
+    expect(truncated.kind).toBe('bad_output')
+    expect(truncated.message).toContain('截断')
+
+    const refusal = errorOf('抱歉，这段内容涉及暴力描写，我无法协助处理。')
+    expect(refusal.kind).toBe('refusal')
+    expect(errorOf("I'm sorry, but I can't help with that.").kind).toBe('refusal')
+
+    const plain = errorOf('这一段讲的是陈恭在酒肆接头的故事。')
+    expect(plain.kind).toBe('bad_output')
+    expect(plain.message).toContain('普通文字')
+
+    const broken = errorOf('{"summary_of_chunk":"陈恭接头","characters":[{"name":"陈恭"')
+    expect(broken.kind).toBe('bad_output')
+    expect(broken.message).toContain('不完整')
+
+    // 能解析但没内容：沿用原来的提示
+    expect(errorOf('{"characters":[]}').message).toContain('没有整理出任何内容')
+  })
+
+  it('失败时留下的回复：短的原样保留，长的只留头尾', () => {
+    expect(failureOutput('  抱歉  ', 'stop')).toEqual({ text: '抱歉', chars: 2, finishReason: 'stop' })
+    expect(failureOutput('')).toEqual({ text: '', chars: 0 })
+    const long = `${'甲'.repeat(400)}${'乙'.repeat(400)}`
+    const out = failureOutput(long)
+    expect(out.chars).toBe(800)
+    expect(out.text.startsWith('甲'.repeat(300))).toBe(true)
+    expect(out.text.endsWith('乙'.repeat(300))).toBe(true)
+    expect(out.text).toContain('中间省略 200 字')
   })
 
   it('请求里带书名、已知人物和原文', () => {

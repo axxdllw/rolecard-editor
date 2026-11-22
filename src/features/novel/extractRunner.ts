@@ -6,9 +6,9 @@ import { create } from 'zustand'
 import { streamChat } from '@/core/ai/client'
 import { AiError, type AiProfile } from '@/core/ai/types'
 import { chunkOrder, chunkText } from '@/core/novel/chunk'
-import { buildExtractRequest, formatRoster, parseExtraction } from '@/core/novel/extract'
+import { buildExtractRequest, failureOutput, formatRoster, parseExtraction } from '@/core/novel/extract'
 import { mergeEntities } from '@/core/novel/merge'
-import type { ChunkPlan, ChunkResult } from '@/core/novel/types'
+import type { ChunkFailureOutput, ChunkPlan, ChunkResult } from '@/core/novel/types'
 import { runPool } from '@/core/util/pool'
 import type { NovelRecord } from '@/db/db'
 import { chunkResults, getNovelText, listChunkRecords, saveChunkError, saveChunkResult } from '@/services/novels'
@@ -49,8 +49,13 @@ const FATAL_KINDS = new Set(['auth', 'not_found', 'bad_request'])
 
 function errorMessage(error: unknown): string {
   if (error instanceof AiError) {
-    if (error.kind === 'refusal') return '模型拒绝处理这一段（可能触发了内容审核），可以换个模型再试'
-    if (error.kind === 'bad_output') return '模型返回的格式不对'
+    if (error.kind === 'refusal') {
+      if (error.finishReason && /recitation/i.test(error.finishReason)) {
+        return '输出和已有的文字太像，被平台拦截了（RECITATION，常见于大段照抄原文），可以重试或换个模型'
+      }
+      return '模型拒绝处理这一段（可能触发了内容审核），可以换个模型再试'
+    }
+    // 格式问题的具体原因（截断、没写 JSON、JSON 残缺等）由 parseExtraction 给出
     return error.message
   }
   return error instanceof Error ? error.message : String(error)
@@ -95,26 +100,35 @@ export const useExtractRunner = create<ExtractRunnerState>()((set, get) => ({
           try {
             const text = chunkText(chapters, plan)
             let lastError: unknown = null
+            let lastOutput: ChunkFailureOutput | undefined
             for (let attempt = 1; attempt <= 3 && !signal.aborted; attempt++) {
+              // 模型的回复和结束原因：失败时存下来给用户看
+              let output = ''
+              let finishReason: string | undefined
               try {
                 const roster = formatRoster(mergeEntities(results, novel.review))
                 const request = buildExtractRequest({ bookTitle: novel.title, chunkLabel: plan.label, text, roster })
-                const result = await streamChat(profile, { ...request, reasoningEffort: effort, signal })
-                let extraction
-                try {
-                  extraction = parseExtraction(result.text)
-                } catch (e) {
-                  if (result.finishReason === 'length') {
-                    throw new AiError('bad_output', '输出被截断了：可以把每块字数调小，或在设置里调大最大输出 token')
-                  }
-                  throw e
-                }
+                const result = await streamChat(profile, {
+                  ...request,
+                  reasoningEffort: effort,
+                  signal,
+                  onText: (_delta, full) => {
+                    output = full
+                  },
+                })
+                output = result.text
+                finishReason = result.rawFinishReason
+                const extraction = parseExtraction(result.text, result.finishReason)
                 await saveChunkResult(novel.id, plan, extraction)
                 results.push({ chunkId: plan.id, order: chunkOrder(plan), label: plan.label, extraction })
                 set((s) => ({ succeeded: s.succeeded + 1 }))
                 return
               } catch (e) {
                 lastError = e
+                lastOutput =
+                  e instanceof AiError && (e.kind === 'bad_output' || e.kind === 'refusal')
+                    ? failureOutput(output, finishReason ?? e.finishReason)
+                    : undefined
                 if (!(e instanceof AiError)) break
                 if (e.kind === 'aborted') return
                 if (FATAL_KINDS.has(e.kind)) {
@@ -128,7 +142,7 @@ export const useExtractRunner = create<ExtractRunnerState>()((set, get) => ({
               }
             }
             if (signal.aborted) return
-            await saveChunkError(novel.id, plan, errorMessage(lastError))
+            await saveChunkError(novel.id, plan, errorMessage(lastError), lastOutput)
             set((s) => ({ failed: s.failed + 1 }))
           } finally {
             set((s) => ({ active: s.active.filter((id) => id !== plan.id) }))

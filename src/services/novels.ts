@@ -6,7 +6,14 @@ import { generatedToEntries, type GeneratedEntry } from '@/core/ai/tasks/loreboo
 import type { ParsedBook } from '@/core/book/types'
 import { createLorebook } from '@/core/lorebook/entry'
 import { chunkOrder } from '@/core/novel/chunk'
-import { EMPTY_OVERRIDES, type ChunkExtraction, type ChunkPlan, type ChunkResult, type NovelChapter } from '@/core/novel/types'
+import {
+  EMPTY_OVERRIDES,
+  type ChunkExtraction,
+  type ChunkFailureOutput,
+  type ChunkPlan,
+  type ChunkResult,
+  type NovelChapter,
+} from '@/core/novel/types'
 import { uuid } from '@/core/util/id'
 import { addLorebook } from './lorebooks'
 import { db, type NovelChunkRecord, type NovelGenerateSettings, type NovelRecord, type NovelSettings } from '@/db/db'
@@ -140,7 +147,12 @@ export async function saveChunkResult(novelId: string, plan: ChunkPlan, extracti
   })
 }
 
-export async function saveChunkError(novelId: string, plan: ChunkPlan, error: string): Promise<void> {
+export async function saveChunkError(
+  novelId: string,
+  plan: ChunkPlan,
+  error: string,
+  errorOutput?: ChunkFailureOutput,
+): Promise<void> {
   // 已经有成功结果的块不被后来的失败覆盖
   const prev = await db.novelChunks.get(chunkRecordId(novelId, plan.id))
   if (prev?.status === 'done') return
@@ -153,6 +165,7 @@ export async function saveChunkError(novelId: string, plan: ChunkPlan, error: st
     chars: plan.chars,
     status: 'error',
     error,
+    errorOutput,
     updatedAt: Date.now(),
   })
 }

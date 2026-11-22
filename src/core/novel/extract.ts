@@ -3,9 +3,10 @@
  * 提示词用测试接口在长篇小说上实测过（同一块重复跑结果稳定，2 万字一块约 45～55 秒）。
  */
 import { extractJson } from '../ai/json'
-import { AiError, type AiMessage } from '../ai/types'
+import { AiError, type AiFinishReason, type AiMessage } from '../ai/types'
 import type {
   ChunkExtraction,
+  ChunkFailureOutput,
   ExtractedCharacter,
   ExtractedEvent,
   ExtractedOrganization,
@@ -208,8 +209,17 @@ function longer(a: string, b: string): string {
   return b.length > a.length ? b : a
 }
 
-export function parseExtraction(text: string): ChunkExtraction {
-  const json = extractJson(text)
+/**
+ * 解析一块的抽取结果。finishReason 用来在解析失败时说清楚原因（截断、拒绝、没写 JSON、JSON 残缺），
+ * 不让用户只看到一句笼统的“格式不对”。
+ */
+export function parseExtraction(text: string, finishReason?: AiFinishReason): ChunkExtraction {
+  let json: unknown
+  try {
+    json = extractJson(text)
+  } catch {
+    throw explainBadJson(text, finishReason)
+  }
   if (!isRecord(json)) throw new AiError('bad_output', '模型返回的不是整理结果的格式，可以重试')
 
   const characters = dedupeByName(compact(list(json, 'characters', 'people'), parseCharacter), (a, b) => ({
@@ -258,4 +268,41 @@ export function parseExtraction(text: string): ChunkExtraction {
     throw new AiError('bad_output', '模型没有整理出任何内容，可以重试')
   }
   return result
+}
+
+// ---------- 失败原因 ----------
+
+/** 模型用文字拒绝时常见的说法（被内容审核拦下后，有的接口不给拒绝信号，只回一句话） */
+const REFUSAL_TEXT =
+  /抱歉|对不起|很遗憾|无法(?:为你|为您|帮|提供|处理|协助|完成|满足|生成|回答)|不能(?:为你|为您|帮|提供|处理|协助|完成|生成)|违反|违规|不当内容|敏感内容|sorry|apologi[sz]e|I (?:can(?:no|'|’)t|am unable|'m unable|won't)|unable to (?:help|assist|comply|process)|against .{0,30}polic/i
+
+/** 拒绝的话一般很短；长回复多半是别的内容 */
+const REFUSAL_MAX_CHARS = 1500
+
+/** 解析不出 JSON 时，按回复的样子判断是哪种情况 */
+function explainBadJson(text: string, finishReason?: AiFinishReason): AiError {
+  const t = text.trim()
+  if (finishReason === 'length') {
+    return new AiError('bad_output', '输出太长被截断了：可以把每块字数调小，或在接口设置里调大最大输出 token')
+  }
+  if (!t.includes('{')) {
+    if (t.length <= REFUSAL_MAX_CHARS && REFUSAL_TEXT.test(t)) {
+      return new AiError('refusal', '模型拒绝处理这一段（可能触发了内容审核），可以换个模型再试')
+    }
+    return new AiError('bad_output', '模型没按要求输出 JSON，回了一段普通文字，可以重试或换个模型')
+  }
+  return new AiError('bad_output', '模型输出的 JSON 不完整或有语法错误（可能写到一半被中断了），可以重试')
+}
+
+/** 留给用户查看的回复：太长时头尾各留这么多字 */
+const OUTPUT_KEEP = 300
+
+/** 抽取失败时要存下来的模型回复 */
+export function failureOutput(text: string, finishReason?: string): ChunkFailureOutput {
+  const t = text.trim()
+  const kept =
+    t.length <= OUTPUT_KEEP * 2
+      ? t
+      : `${t.slice(0, OUTPUT_KEEP)}\n\n……（中间省略 ${t.length - OUTPUT_KEEP * 2} 字）……\n\n${t.slice(-OUTPUT_KEEP)}`
+  return finishReason ? { text: kept, chars: t.length, finishReason } : { text: kept, chars: t.length }
 }
