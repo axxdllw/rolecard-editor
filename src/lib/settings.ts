@@ -6,6 +6,7 @@ import { persist } from 'zustand/middleware'
 
 export type LibrarySort = 'updatedAt' | 'createdAt' | 'name'
 export type LibraryView = 'grid' | 'list'
+export type SidePanelTab = 'render' | 'assistant'
 
 export interface CustomTemplate {
   id: string
@@ -24,8 +25,10 @@ interface SettingsState {
   lastBackupAt: number | null
   /** 自己保存的描述模板 */
   customTemplates: CustomTemplate[]
-  /** 编辑页是否打开渲染预览侧栏 */
+  /** 编辑页侧栏是否打开 */
   renderPanelOpen: boolean
+  /** 编辑页侧栏当前面板 */
+  sidePanelTab: SidePanelTab
   set: (patch: Partial<Omit<SettingsState, 'set'>>) => void
 }
 
@@ -39,6 +42,7 @@ export const useSettings = create<SettingsState>()(
       lastBackupAt: null,
       customTemplates: [],
       renderPanelOpen: false,
+      sidePanelTab: 'render',
       set: (patch) => set(patch),
     }),
     { name: 'rce-settings' },

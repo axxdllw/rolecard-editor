@@ -1,5 +1,6 @@
 import {
   ArrowLeftIcon,
+  BotIcon,
   CheckIcon,
   CopyIcon,
   DownloadIcon,
@@ -41,7 +42,7 @@ import { QuickEditDialog } from '@/features/quick-edit/QuickEditDialog'
 import { RegexPanel } from '@/features/regex/RegexPanel'
 import { WorldbookEditor } from '@/features/worldbook/WorldbookEditor'
 import { downloadBlob, pickFiles } from '@/lib/files'
-import { useSettings } from '@/lib/settings'
+import { useSettings, type SidePanelTab } from '@/lib/settings'
 import { useMediaQuery } from '@/lib/useMediaQuery'
 import { cn } from '@/lib/utils'
 import { cardFileBase, duplicateCard, exportCardJson, exportCardPng, saveCard } from '@/services/cards'
@@ -54,6 +55,8 @@ const EMPTY_KEYS: string[] = []
 
 // 渲染预览依赖 showdown、DOMPurify 等，打开时才加载
 const RenderPanel = lazy(() => import('@/features/render/RenderPanel'))
+// 侧栏 AI 助手，打开时才加载
+const AssistantPanel = lazy(() => import('@/features/ai/AssistantPanel'))
 // 脚本编辑带 JavaScript 语法和接口清单，切到脚本页才加载
 const ScriptsPanel = lazy(() => import('@/features/scripts/ScriptsPanel'))
 
@@ -125,10 +128,30 @@ function Editor({ record }: { record: CardRecord }) {
     await saveCard((doc as LoadedDoc).id, doc.card)
   })
   useUndoShortcuts()
-  const renderOpen = useSettings((s) => s.renderPanelOpen)
-  const setRenderOpen = (open: boolean) => useSettings.getState().set({ renderPanelOpen: open })
+  const sideOpen = useSettings((s) => s.renderPanelOpen)
+  const sideTab = useSettings((s) => s.sidePanelTab)
+  // 首次打开后保持挂载，切换面板时隐藏而不是卸载
+  const [openedPanels, setOpenedPanels] = useState<{ render: boolean; assistant: boolean }>(() => ({
+    render: sideOpen && sideTab === 'render',
+    assistant: sideOpen && sideTab === 'assistant',
+  }))
+  const closeSidePanel = () => useSettings.getState().set({ renderPanelOpen: false })
+  const toggleSidePanel = (target: SidePanelTab) => {
+    if (sideOpen && sideTab === target) {
+      closeSidePanel()
+      return
+    }
+    setOpenedPanels((prev) => (prev[target] ? prev : { ...prev, [target]: true }))
+    useSettings.getState().set({ renderPanelOpen: true, sidePanelTab: target })
+  }
+  const onSheetOpenChange = (open: boolean) => {
+    if (open) {
+      setOpenedPanels((prev) => (prev[sideTab] ? prev : { ...prev, [sideTab]: true }))
+    }
+    useSettings.getState().set({ renderPanelOpen: open })
+  }
   const wide = useMediaQuery('(min-width: 1280px)')
-  const split = renderOpen && wide
+  const split = sideOpen && wide
 
   const changeAvatar = async () => {
     const [file] = await pickFiles('image/png,image/jpeg,image/webp,image/gif')
@@ -214,8 +237,19 @@ function Editor({ record }: { record: CardRecord }) {
             </TooltipTrigger>
             <TooltipContent>重做（Ctrl+Y）</TooltipContent>
           </Tooltip>
-          <Button variant={renderOpen ? 'secondary' : 'outline'} onClick={() => setRenderOpen(!renderOpen)} aria-pressed={renderOpen}>
+          <Button
+            variant={sideOpen && sideTab === 'render' ? 'secondary' : 'outline'}
+            onClick={() => toggleSidePanel('render')}
+            aria-pressed={sideOpen && sideTab === 'render'}
+          >
             <MonitorPlayIcon /> 渲染预览
+          </Button>
+          <Button
+            variant={sideOpen && sideTab === 'assistant' ? 'secondary' : 'outline'}
+            onClick={() => toggleSidePanel('assistant')}
+            aria-pressed={sideOpen && sideTab === 'assistant'}
+          >
+            <BotIcon /> AI 助手
           </Button>
           <Button variant="outline" onClick={() => setQuickOpen(true)}>
             <WandSparklesIcon /> 快捷修改
@@ -298,19 +332,41 @@ function Editor({ record }: { record: CardRecord }) {
         </Tabs>
         {split && (
           <aside className="sticky top-14 flex h-[calc(100svh-9.5rem)] min-h-[480px] flex-col rounded-xl border bg-card p-3">
-            <Suspense fallback={<p className="p-4 text-sm text-muted-foreground">加载预览…</p>}>
-              <RenderPanel cardId={record.id} avatar={avatar} onClose={() => setRenderOpen(false)} className="flex-1" />
-            </Suspense>
+            {openedPanels.render && (
+              <div className={sideTab === 'render' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
+                <Suspense fallback={<p className="p-4 text-sm text-muted-foreground">加载预览…</p>}>
+                  <RenderPanel cardId={record.id} avatar={avatar} onClose={closeSidePanel} className="flex-1" />
+                </Suspense>
+              </div>
+            )}
+            {openedPanels.assistant && (
+              <div className={sideTab === 'assistant' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
+                <Suspense fallback={<p className="p-4 text-sm text-muted-foreground">加载助手…</p>}>
+                  <AssistantPanel cardId={record.id} onClose={closeSidePanel} className="flex-1" />
+                </Suspense>
+              </div>
+            )}
           </aside>
         )}
       </div>
       {!wide && (
-        <Sheet open={renderOpen} onOpenChange={setRenderOpen}>
+        <Sheet open={sideOpen} onOpenChange={onSheetOpenChange}>
           <SheetContent side="right" showCloseButton={false} className="w-full p-3 data-[side=right]:w-full data-[side=right]:sm:max-w-xl">
-            <SheetTitle className="sr-only">渲染预览</SheetTitle>
-            <Suspense fallback={<p className="p-4 text-sm text-muted-foreground">加载预览…</p>}>
-              <RenderPanel cardId={record.id} avatar={avatar} onClose={() => setRenderOpen(false)} className="flex-1" />
-            </Suspense>
+            <SheetTitle className="sr-only">{sideTab === 'assistant' ? 'AI 助手' : '渲染预览'}</SheetTitle>
+            {openedPanels.render && (
+              <div className={sideTab === 'render' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
+                <Suspense fallback={<p className="p-4 text-sm text-muted-foreground">加载预览…</p>}>
+                  <RenderPanel cardId={record.id} avatar={avatar} onClose={closeSidePanel} className="flex-1" />
+                </Suspense>
+              </div>
+            )}
+            {openedPanels.assistant && (
+              <div className={sideTab === 'assistant' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>
+                <Suspense fallback={<p className="p-4 text-sm text-muted-foreground">加载助手…</p>}>
+                  <AssistantPanel cardId={record.id} onClose={closeSidePanel} className="flex-1" />
+                </Suspense>
+              </div>
+            )}
           </SheetContent>
         </Sheet>
       )}

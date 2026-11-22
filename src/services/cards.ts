@@ -15,6 +15,7 @@ import { db, type CardRecord, type CardStats } from '@/db/db'
 import { fileKind, safeFileName } from '@/lib/files'
 import { blobToBytes, bytesToBlob, defaultAvatarPng, toPngBlob } from '@/lib/image'
 import { countTokens } from '@/lib/tokens'
+import { deleteAssistantChats } from './assistantChats'
 import { copyOriginal, deleteOriginals, saveImportOriginal } from './originals'
 
 export function computeStats(card: CharacterCardV3): CardStats {
@@ -216,9 +217,10 @@ export async function updateCardMeta(id: string, meta: Partial<Pick<CardRecord, 
 }
 
 export async function deleteCards(ids: string[]) {
-  await db.transaction('rw', db.cards, db.originals, async () => {
+  await db.transaction('rw', db.cards, db.originals, db.assistantChats, async () => {
     await db.cards.bulkDelete(ids)
     await deleteOriginals(ids)
+    await deleteAssistantChats(ids)
   })
 }
 

@@ -1,14 +1,14 @@
 /**
- * 整库备份与恢复：zip 包，manifest.json 存卡片、世界书和卡的原件，头像单独存成 PNG。
+ * 整库备份与恢复：zip 包，manifest.json 存卡片、世界书、卡的原件和助手对话，头像单独存成 PNG。
  */
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
-import { db, type CardOriginalRecord, type CardRecord, type LorebookRecord } from '@/db/db'
+import { db, type AssistantChatRecord, type CardOriginalRecord, type CardRecord, type LorebookRecord } from '@/db/db'
 import { blobToBytes, bytesToBlob } from '@/lib/image'
 import { avatarFromPng } from './cards'
 
 const APP_ID = 'role-card-editor'
-// 2：加入卡的原件（originals）；恢复时兼容 1
-const BACKUP_VERSION = 2
+// 2：加入卡的原件（originals）；3：加入助手对话；恢复时兼容 1、2
+const BACKUP_VERSION = 3
 
 interface BackupManifest {
   app: string
@@ -17,12 +17,14 @@ interface BackupManifest {
   cards: Array<Omit<CardRecord, 'avatar'> & { avatarFile: string | null }>
   lorebooks: LorebookRecord[]
   originals?: Array<Omit<CardOriginalRecord, 'avatar'> & { avatarFile: string | null }>
+  assistantChats?: AssistantChatRecord[]
 }
 
 export async function exportBackup(): Promise<{ bytes: Uint8Array; cards: number; lorebooks: number }> {
   const cards = await db.cards.toArray()
   const lorebooks = await db.lorebooks.toArray()
   const originals = await db.originals.toArray()
+  const assistantChats = await db.assistantChats.toArray()
   const files: Record<string, Uint8Array | [Uint8Array, { level: 0 }]> = {}
 
   const manifestCards: BackupManifest['cards'] = []
@@ -52,6 +54,7 @@ export async function exportBackup(): Promise<{ bytes: Uint8Array; cards: number
     cards: manifestCards,
     lorebooks,
     originals: manifestOriginals,
+    assistantChats,
   }
   files['manifest.json'] = strToU8(JSON.stringify(manifest))
   return { bytes: zipSync(files), cards: cards.length, lorebooks: lorebooks.length }
@@ -80,15 +83,19 @@ export async function restoreBackup(bytes: Uint8Array, mode: RestoreMode): Promi
     avatar: avatarFile && files[avatarFile] ? bytesToBlob(files[avatarFile]) : null,
   }))
 
-  await db.transaction('rw', db.cards, db.lorebooks, db.originals, async () => {
+  await db.transaction('rw', db.cards, db.lorebooks, db.originals, db.assistantChats, async () => {
     if (mode === 'replace') {
       await db.cards.clear()
       await db.lorebooks.clear()
       await db.originals.clear()
+      await db.assistantChats.clear()
     }
     await db.cards.bulkPut(cards)
     await db.lorebooks.bulkPut(manifest.lorebooks)
     await db.originals.bulkPut(originals)
+    if (manifest.assistantChats?.length) {
+      await db.assistantChats.bulkPut(manifest.assistantChats)
+    }
   })
   return { cards: cards.length, lorebooks: manifest.lorebooks.length }
 }

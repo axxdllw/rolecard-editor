@@ -36,6 +36,7 @@ import { AiLorebookDialog } from '@/features/ai/AiLorebookDialog'
 import { cardRewriteContext } from '@/features/ai/cardContext'
 import { useCardDoc, type BookDraft } from '@/features/editor/cardDoc'
 import type { UpdateOptions } from '@/features/editor/docStore'
+import { setFocusEntry } from '@/features/editor/focusEntry'
 import { downloadBlob, pickFiles, safeFileName } from '@/lib/files'
 import { useSettings } from '@/lib/settings'
 import { cachedTokens, countTokensSync, formatTokens, useTokenizerReady } from '@/lib/tokens'
@@ -139,6 +140,15 @@ export function WorldbookEditor({ book, keys, update, mode, libraryId, headerExt
   const sortable = sort === 'display' && filter === 'all' && !query.trim()
   const activeIndex = activeKey ? keys.indexOf(activeKey) : -1
   const activeEntry = activeIndex >= 0 ? entries[activeIndex] : undefined
+
+  useEffect(() => {
+    if (mode !== 'card') return
+    setFocusEntry(activeIndex >= 0 ? activeIndex + 1 : null)
+  }, [mode, activeIndex])
+  useEffect(() => {
+    if (mode !== 'card') return
+    return () => setFocusEntry(null)
+  }, [mode])
 
   const constantTokens = useMemo(() => {
     if (!tokenizerReady) return null

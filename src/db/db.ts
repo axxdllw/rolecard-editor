@@ -77,10 +77,28 @@ export interface LorebookRecord {
   updatedAt: number
 }
 
+export interface AssistantChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  createdAt: number
+  /** 助手消息里各提案的处理状态，键为 `${段序号}:${提案序号}`（段序号是 parseAssistantReply 结果里的下标） */
+  editStates?: Record<string, 'applied' | 'dismissed'>
+  /** 这条助手回复出错时的说明；出错的回复不进入发给模型的历史 */
+  error?: string
+}
+
+export interface AssistantChatRecord {
+  cardId: string
+  messages: AssistantChatMessage[]
+  updatedAt: number
+}
+
 export const db = new Dexie('role-card-editor') as Dexie & {
   cards: EntityTable<CardRecord, 'id'>
   lorebooks: EntityTable<LorebookRecord, 'id'>
   originals: EntityTable<CardOriginalRecord, 'cardId'>
+  assistantChats: EntityTable<AssistantChatRecord, 'cardId'>
 }
 
 db.version(1).stores({
@@ -90,4 +108,8 @@ db.version(1).stores({
 
 db.version(2).stores({
   originals: 'cardId',
+})
+
+db.version(3).stores({
+  assistantChats: 'cardId',
 })
