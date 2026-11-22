@@ -5,6 +5,7 @@ import { confirm } from '@/components/confirm'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { AiSettingsPanel } from '@/features/ai/AiSettingsPanel'
 import { downloadBlob, pickFiles } from '@/lib/files'
 import { formatBytes, formatTime } from '@/lib/format'
 import { useSettings } from '@/lib/settings'
@@ -112,6 +113,10 @@ export default function SettingsPage() {
             iPhone / iPad 提示：Safari 对没有添加到主屏幕的网站，7 天不打开可能会清掉本地数据。建议点分享按钮 →“添加到主屏幕”，并定期备份。
           </p>
         )}
+      </Panel>
+
+      <Panel title="AI 接口" description="AI 辅助写卡用你自己的 API key，支持 OpenAI 兼容、Anthropic 格式和 Gemini 三种接口，中转站也能用。">
+        <AiSettingsPanel />
       </Panel>
 
       <Panel title="预览与检查">

@@ -31,6 +31,8 @@ import {
   setStrategy,
   type EntryStrategy,
 } from '@/core/lorebook/entry'
+import type { RewriteContext } from '@/core/ai/tasks/rewrite'
+import { AiFieldButton } from '@/features/ai/AiRewriteDialog'
 import { FieldLabel, TokenBadge } from '@/features/editor/fields'
 import type { UpdateOptions } from '@/features/editor/docStore'
 import { cn } from '@/lib/utils'
@@ -47,6 +49,8 @@ interface EntryDetailProps {
   extraActions?: ReactNode
   /** 世界书里已有的锚点名，填锚点名时自动补全 */
   outletNames?: string[]
+  /** AI 改写时参考的角色卡内容；独立世界书没有 */
+  getAiContext?: () => RewriteContext | undefined
 }
 
 function numOrNull(raw: string): number | null {
@@ -80,7 +84,7 @@ const MATCH_SOURCES: Array<[string, string]> = [
   ['match_creator_notes', '创作者备注'],
 ]
 
-export function EntryDetail({ entry, entryKey, onEdit, onDelete, onDuplicate, extraActions, outletNames = EMPTY }: EntryDetailProps) {
+export function EntryDetail({ entry, entryKey, onEdit, onDelete, onDuplicate, extraActions, outletNames = EMPTY, getAiContext }: EntryDetailProps) {
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const strategy = getStrategy(entry)
   const position = getPosition(entry)
@@ -256,7 +260,23 @@ export function EntryDetail({ entry, entryKey, onEdit, onDelete, onDuplicate, ex
       )}
 
       <div className="flex flex-col gap-1.5">
-        <FieldLabel label="内容" extra={<TokenBadge text={entry.content ?? ''} />} />
+        <FieldLabel
+          label="内容"
+          extra={
+            <div className="flex items-center gap-2">
+              <AiFieldButton
+                target={() => ({
+                  fieldLabel: `世界书条目「${entry.comment || '未命名'}」的内容`,
+                  fieldHint: `关键词触发时插入提示词的设定内容${entry.keys?.length ? `；关键词：${entry.keys.join('、')}` : ''}`,
+                  value: entry.content ?? '',
+                  getContext: getAiContext,
+                  onApply: (v) => onEdit((e) => void (e.content = v), { label: 'AI 改写条目内容' }),
+                })}
+              />
+              <TokenBadge text={entry.content ?? ''} />
+            </div>
+          }
+        />
         <TextEditor
           value={entry.content ?? ''}
           onChange={onContent}

@@ -30,7 +30,8 @@ import type { Lorebook, LorebookEntry } from '@/core/card/types'
 import { collectOutletNames, createEntry, entryTitle, getDisplayIndex, getOrder, getPosition, getStrategy, POSITION_OPTIONS } from '@/core/lorebook/entry'
 import { lintLorebook, type LintIssue } from '@/core/lorebook/lint'
 import { parseLorebookJson } from '@/core/lorebook/world'
-import type { BookDraft } from '@/features/editor/cardDoc'
+import { cardRewriteContext } from '@/features/ai/cardContext'
+import { useCardDoc, type BookDraft } from '@/features/editor/cardDoc'
 import type { UpdateOptions } from '@/features/editor/docStore'
 import { downloadBlob, pickFiles, safeFileName } from '@/lib/files'
 import { useSettings } from '@/lib/settings'
@@ -249,6 +250,7 @@ export function WorldbookEditor({ book, keys, update, mode, libraryId, headerExt
       onEdit={onEditActive}
       onDelete={() => removeKeys([activeKey])}
       outletNames={outletNames}
+      getAiContext={mode === 'card' ? () => cardRewriteContext(useCardDoc.getState().doc?.card) : undefined}
       onDuplicate={() => {
         let newKey: string | null = null
         update((d) => void (newKey = duplicateEntry(d, activeKey)), { label: '复制条目' })

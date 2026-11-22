@@ -6,7 +6,9 @@ import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { Path } from '@/core/util/path'
 import { formatTokens, useTokenCount } from '@/lib/tokens'
-import { setCardPath, useCardPath } from './cardDoc'
+import { AiFieldButton } from '@/features/ai/AiRewriteDialog'
+import { cardRewriteContext } from '@/features/ai/cardContext'
+import { setCardPath, useCardDoc, useCardPath } from './cardDoc'
 
 export function Section({ id, title, description, children, actions }: { id: string; title: string; description?: string; children: ReactNode; actions?: ReactNode }) {
   return (
@@ -75,6 +77,15 @@ export function TextField({ path, label, hint, placeholder, minHeight = 80, maxH
         extra={
           <div className="flex items-center gap-2">
             {actions}
+            <AiFieldButton
+              target={() => ({
+                fieldLabel: label,
+                fieldHint: hint,
+                value,
+                getContext: () => cardRewriteContext(useCardDoc.getState().doc?.card, path[0] === 'data' && path.length === 2 ? String(path[1]) : undefined),
+                onApply: (text) => setCardPath(path, text, `AI 改写${label}`),
+              })}
+            />
             <TokenBadge text={value} />
           </div>
         }

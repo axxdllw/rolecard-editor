@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSettings } from '@/lib/settings'
 import { setCardPath, updateCard, useCardDoc, useCardPath } from './cardDoc'
+import { AiFieldButton } from '@/features/ai/AiRewriteDialog'
+import { cardRewriteContext } from '@/features/ai/cardContext'
 import { FieldLabel, Section, TokenBadge } from './fields'
 
 // zustand 选择器的兜底值必须是稳定引用，否则会无限重渲染
@@ -72,6 +74,15 @@ function GreetingItem({
         </button>
         <span className="text-sm font-medium">备选开场白 {index + 1}</span>
         <div className="flex-1" />
+        <AiFieldButton
+          target={() => ({
+            fieldLabel: `备选开场白 ${index + 1}`,
+            fieldHint: '备选开场白：用户在聊天开头可以切换到这一条',
+            value: text,
+            getContext: () => cardRewriteContext(useCardDoc.getState().doc?.card),
+            onApply: (v) => updateCard((d) => void (d.card.data.alternate_greetings[index] = v), { label: 'AI 改写开场白' }),
+          })}
+        />
         <TokenBadge text={text} />
         <Tooltip>
           <TooltipTrigger asChild>
@@ -137,7 +148,24 @@ export function GreetingsSection({ avatar }: { avatar: Blob | null }) {
       }
     >
       <div id="field-data-first_mes" className="flex flex-col gap-1.5">
-        <FieldLabel label="主开场白" hint="first_mes：新建聊天时默认显示" extra={<TokenBadge text={firstMes} />} />
+        <FieldLabel
+          label="主开场白"
+          hint="first_mes：新建聊天时默认显示"
+          extra={
+            <div className="flex items-center gap-2">
+              <AiFieldButton
+                target={() => ({
+                  fieldLabel: '主开场白',
+                  fieldHint: 'first_mes：新建聊天时角色说的第一段话，决定开局的场景和文风',
+                  value: firstMes,
+                  getContext: () => cardRewriteContext(useCardDoc.getState().doc?.card, 'first_mes'),
+                  onApply: (v) => setCardPath(['data', 'first_mes'], v, 'AI 改写主开场白'),
+                })}
+              />
+              <TokenBadge text={firstMes} />
+            </div>
+          }
+        />
         {preview ? (
           <ChatPreview text={firstMes} charName={charName} userName={userName} avatar={avatar} />
         ) : (
