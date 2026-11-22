@@ -1,0 +1,765 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="referrer" content="no-referrer" />
+<meta name="robots" content="noindex, nofollow" />
+<meta name="description" content="给 SillyTavern 玩家用的角色卡编辑器：所有字段一页看完，世界书好管理，导入导出不丢数据。纯网页，数据只存在你自己的浏览器里。" />
+<meta name="theme-color" content="#f0e9db" />
+<title>角色卡编辑器 · 试用介绍</title>
+<link rel="icon" type="image/svg+xml" href="./app/favicon.svg" />
+<style>
+:root {
+  --paper: #f0e9db;
+  --paper-deep: #e4d9c4;
+  --card: #fbf7ee;
+  --ink: #1c1a17;
+  --ink-soft: #49443c;
+  --muted: #857c6c;
+  --red: #b2301c;
+  --red-soft: #d4573d;
+  --rule: rgba(63, 104, 160, 0.17);
+  --line: rgba(28, 26, 23, 0.14);
+  --night: #191714;
+  --night-2: #23201b;
+  --serif: "Source Han Serif SC", "Noto Serif SC", "Noto Serif CJK SC", "Songti SC", "STSong", "SimSun", serif;
+  --sans: "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --mono: "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  --lh: 1.75rem;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background:
+    radial-gradient(120% 80% at 85% -10%, rgba(178, 48, 28, 0.07), transparent 60%),
+    radial-gradient(90% 70% at -10% 110%, rgba(63, 104, 160, 0.07), transparent 60%),
+    var(--paper);
+  color: var(--ink);
+  font: 15.5px/1.75 var(--sans);
+  overflow-x: hidden;
+}
+/* 纸张颗粒 */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0.32;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .42  0 0 0 0 .36  0 0 0 0 .27  0 0 0 .55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+a { color: inherit; }
+::selection { background: rgba(178, 48, 28, 0.2); }
+.wrap { width: min(1180px, 100% - 48px); margin: 0 auto; }
+.mono { font-family: var(--mono); }
+
+/* ---------- 顶栏 ---------- */
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  backdrop-filter: blur(10px) saturate(1.2);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+  background: rgba(240, 233, 219, 0.78);
+  border-bottom: 1px solid var(--line);
+}
+.top .wrap { display: flex; align-items: center; gap: 28px; height: 64px; }
+.brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+.brand-seal {
+  width: 34px; height: 34px;
+  display: grid; place-items: center;
+  background: var(--red);
+  color: #fbf2e6;
+  font: 700 19px/1 var(--serif);
+  border-radius: 5px;
+  transform: rotate(-4deg);
+  box-shadow: inset 0 0 0 2px rgba(251, 242, 230, 0.55), inset 0 0 0 4px var(--red);
+}
+.brand-name { font: 700 17px/1.1 var(--serif); letter-spacing: 0.08em; }
+.brand-tag {
+  font: 500 10.5px/1 var(--mono);
+  letter-spacing: 0.14em;
+  color: var(--red);
+  border: 1px solid currentColor;
+  padding: 3px 6px 2px;
+  border-radius: 3px;
+  margin-left: 2px;
+}
+.nav { display: flex; gap: 24px; margin-left: auto; font-size: 14px; }
+.nav a { text-decoration: none; color: var(--ink-soft); position: relative; padding: 4px 0; }
+.nav a::after {
+  content: ""; position: absolute; left: 0; right: 100%; bottom: 0; height: 1.5px;
+  background: var(--red); transition: right 0.28s ease;
+}
+.nav a:hover { color: var(--ink); }
+.nav a:hover::after { right: 0; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 12px 22px;
+  border-radius: 999px;
+  font: 600 15px/1 var(--sans);
+  text-decoration: none;
+  border: 1.5px solid var(--ink);
+  transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+  white-space: nowrap;
+}
+.btn .arr { font-family: var(--mono); transition: transform 0.25s ease; }
+.btn:hover .arr { transform: translateX(4px); }
+.btn-ink { background: var(--ink); color: var(--paper); box-shadow: 4px 4px 0 var(--red); }
+.btn-ink:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--red); }
+.btn-line { color: var(--ink); background: transparent; }
+.btn-line:hover { background: rgba(28, 26, 23, 0.06); }
+.btn-sm { padding: 9px 16px; font-size: 13.5px; box-shadow: 3px 3px 0 var(--red); }
+
+/* ---------- 首屏 ---------- */
+.hero { padding: 72px 0 96px; position: relative; }
+.hero .wrap { display: grid; grid-template-columns: 1.08fr 0.92fr; gap: 56px; align-items: center; }
+.kicker {
+  font: 500 12px/1 var(--mono);
+  letter-spacing: 0.2em;
+  color: var(--muted);
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 28px;
+}
+.kicker::before { content: ""; width: 36px; height: 1.5px; background: var(--red); }
+h1 {
+  font: 900 clamp(46px, 7.2vw, 96px)/1.08 var(--serif);
+  letter-spacing: 0.02em;
+  margin: 0 0 30px;
+}
+h1 em { font-style: normal; color: var(--red); position: relative; white-space: nowrap; }
+h1 em::after {
+  content: "";
+  position: absolute; left: -3%; right: -5%; bottom: 0.02em; height: 0.2em;
+  background: var(--red); opacity: 0.16;
+  transform: skew(-14deg) rotate(-1.2deg);
+  border-radius: 2px;
+}
+.lede { font-size: 17.5px; color: var(--ink-soft); max-width: 34em; margin: 0 0 36px; }
+.lede b { color: var(--ink); font-weight: 600; }
+.cta { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 38px; }
+.facts { display: flex; flex-wrap: wrap; gap: 10px 26px; font: 13px/1.4 var(--mono); color: var(--muted); }
+.facts span::before { content: "✓ "; color: var(--red); font-weight: 700; }
+
+/* 卡片目录：横线索引卡 */
+.idx {
+  position: relative;
+  background-color: var(--card);
+  background-image: repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--lh) - 1px), var(--rule) calc(var(--lh) - 1px), var(--rule) var(--lh));
+  background-position: 0 var(--head, 3rem);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 22px 44px -26px rgba(48, 34, 14, 0.5), 0 2px 6px -2px rgba(48, 34, 14, 0.12);
+}
+.idx-head {
+  height: var(--head, 3rem);
+  background: var(--card);
+  border-bottom: 2px solid rgba(178, 48, 28, 0.55);
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 20px;
+  border-radius: 3px 3px 0 0;
+}
+.idx-body { margin: 0; padding: 0 20px var(--lh); line-height: var(--lh); }
+.idx-body p { margin: 0; }
+
+/* 首屏卡堆 */
+.deck { position: relative; height: 470px; perspective: 1400px; }
+.deck .idx { position: absolute; width: min(400px, 100%); left: 50%; top: 50%; transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.deck .c3 { transform: translate(-46%, -54%) rotate(7deg); }
+.deck .c2 { transform: translate(-54%, -50%) rotate(-5deg); }
+.deck .c1 { transform: translate(-50%, -46%) rotate(1.5deg); }
+.deck:hover .c3 { transform: translate(-22%, -66%) rotate(11deg); }
+.deck:hover .c2 { transform: translate(-80%, -56%) rotate(-10deg); }
+.deck:hover .c1 { transform: translate(-50%, -40%) rotate(0deg); }
+.deck .c2, .deck .c3 { filter: saturate(0.9) brightness(0.985); }
+.deck .label { font: 600 11.5px/1 var(--mono); letter-spacing: 0.12em; color: var(--red); }
+.deck .num { font: 500 11.5px/1 var(--mono); color: var(--muted); margin-left: auto; }
+.deck .ghost { color: var(--muted); font-size: 14px; }
+.who { display: flex; align-items: baseline; gap: 12px; padding-top: 6px; }
+.who strong { font: 900 40px/var(--lh) var(--serif); letter-spacing: 0.06em; }
+.who span { color: var(--muted); font-size: 14px; }
+.leader { display: flex; gap: 8px; font-size: 14px; }
+.leader i { flex: 1; border-bottom: 1.5px dotted rgba(28, 26, 23, 0.3); transform: translateY(-0.55em); }
+.leader b { font: 600 13px/var(--lh) var(--mono); }
+.macro { font-family: var(--mono); font-size: 0.88em; color: #2f5d97; background: rgba(63, 104, 160, 0.1); border-radius: 3px; padding: 1px 4px; }
+.stamp {
+  position: absolute; right: -30px; bottom: -58px;
+  width: 104px; height: 104px;
+  transform: rotate(-12deg);
+  filter: url(#rough);
+  opacity: 0.9;
+}
+
+/* ---------- 通用区块 ---------- */
+section { position: relative; }
+.sec { padding: 110px 0; }
+.sec-head { display: grid; grid-template-columns: 180px 1fr; gap: 32px; margin-bottom: 56px; align-items: start; }
+.sec-no { font: 500 13px/1 var(--mono); letter-spacing: 0.2em; color: var(--red); border-top: 1.5px solid var(--red); padding-top: 12px; margin-top: 1.1rem; }
+.sec-head h2 { font: 900 clamp(32px, 4.4vw, 54px)/1.15 var(--serif); margin: 0; letter-spacing: 0.03em; }
+.sec-head p { margin: 14px 0 0; color: var(--ink-soft); max-width: 40em; }
+
+/* 功能目录 */
+.cat { display: grid; grid-template-columns: repeat(12, 1fr); gap: 26px; }
+.cat .idx { --head: 3.4rem; transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.35s ease; }
+.cat .idx:hover { transform: translateY(-4px) rotate(var(--tilt, -0.6deg)); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 30px 50px -26px rgba(48, 34, 14, 0.55); }
+.cat .idx:nth-child(even) { --tilt: 0.6deg; }
+.cat .idx-head h3 { font: 700 19px/1 var(--serif); margin: 0; letter-spacing: 0.04em; }
+.cat .no { font: 600 12px/1 var(--mono); color: var(--red); letter-spacing: 0.06em; }
+.cat .idx-body { font-size: 14.5px; color: var(--ink-soft); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; padding-top: calc(var(--lh) * 0.25); }
+.chips span { font: 500 11.5px/1.9 var(--mono); padding: 0 8px; border: 1px solid var(--line); border-radius: 3px; background: rgba(240, 233, 219, 0.7); color: var(--ink-soft); }
+.s5 { grid-column: span 5; } .s7 { grid-column: span 7; } .s4 { grid-column: span 4; } .s12 { grid-column: span 12; }
+.wide-body { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 32px; }
+
+/* ---------- 演示：改名向导 ---------- */
+.night {
+  background: var(--night);
+  color: #efe6d6;
+  background-image:
+    radial-gradient(70% 90% at 100% 0%, rgba(178, 48, 28, 0.22), transparent 60%),
+    linear-gradient(rgba(239, 230, 214, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(239, 230, 214, 0.035) 1px, transparent 1px);
+  background-size: auto, 32px 32px, 32px 32px;
+}
+.night .sec-head p { color: rgba(239, 230, 214, 0.7); }
+.night .sec-no { color: var(--red-soft); border-color: var(--red-soft); }
+.demo { display: grid; grid-template-columns: 0.8fr 1.2fr; gap: 40px; align-items: start; }
+.panel { background: var(--night-2); border: 1px solid rgba(239, 230, 214, 0.1); border-radius: 6px; padding: 24px; }
+.panel-title { font: 600 11.5px/1 var(--mono); letter-spacing: 0.16em; color: rgba(239, 230, 214, 0.55); margin-bottom: 18px; }
+.cand { display: grid; grid-template-columns: auto 1fr; gap: 10px 14px; align-items: center; padding: 14px 0; border-top: 1px dashed rgba(239, 230, 214, 0.14); }
+.cand:first-of-type { border-top: 0; padding-top: 0; }
+.cand-name { font: 700 20px/1 var(--serif); }
+.cand-meta { font: 12px/1.4 var(--mono); color: rgba(239, 230, 214, 0.55); }
+.cand label { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; font-size: 13px; color: rgba(239, 230, 214, 0.7); }
+.cand input {
+  flex: 1; min-width: 0;
+  background: #14120f; color: #fff6e8;
+  border: 1px solid rgba(239, 230, 214, 0.2);
+  border-radius: 4px;
+  padding: 10px 12px;
+  font: 600 16px/1.2 var(--sans);
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.cand input:focus { border-color: var(--red-soft); box-shadow: 0 0 0 3px rgba(212, 87, 61, 0.25); }
+.presets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.presets button {
+  font: 500 12.5px/1 var(--mono);
+  background: transparent; color: rgba(239, 230, 214, 0.8);
+  border: 1px solid rgba(239, 230, 214, 0.2); border-radius: 999px;
+  padding: 8px 12px; cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+.presets button:hover { background: rgba(239, 230, 214, 0.08); color: #fff; border-color: rgba(239, 230, 214, 0.4); }
+.count { margin-top: 20px; font: 13px/1.6 var(--mono); color: rgba(239, 230, 214, 0.6); }
+.count b { color: var(--red-soft); font-size: 22px; vertical-align: -2px; }
+.sheet { color: var(--ink); --head: 3rem; }
+.sheet .idx-body { font-size: 14.5px; }
+.sheet dt { font: 600 11.5px/var(--lh) var(--mono); letter-spacing: 0.12em; color: var(--red); }
+.sheet dd { margin: 0 0 0; color: var(--ink-soft); }
+.sheet mark { background: none; color: inherit; border-radius: 2px; padding: 0 1px; }
+.sheet mark.hit { background: rgba(178, 48, 28, 0.13); box-shadow: inset 0 -2px 0 rgba(178, 48, 28, 0.5); color: var(--ink); }
+.sheet mark.chg { background: rgba(214, 160, 40, 0.28); box-shadow: inset 0 -2px 0 #c58a12; color: var(--ink); animation: flash 0.7s ease; }
+@keyframes flash { from { background: rgba(214, 160, 40, 0.75); } }
+.demo-note { margin-top: 18px; font-size: 13.5px; color: rgba(239, 230, 214, 0.6); }
+
+/* ---------- 数据放哪 ---------- */
+.data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: start; }
+.statement { font: 900 clamp(28px, 3.4vw, 42px)/1.35 var(--serif); margin: 0 0 30px; letter-spacing: 0.02em; }
+.statement u { text-decoration: none; background: linear-gradient(transparent 62%, rgba(178, 48, 28, 0.2) 62%); }
+.ledger { border-top: 2px solid var(--ink); }
+.ledger-row { display: grid; grid-template-columns: 1fr auto; gap: 6px 18px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.ledger-row dt { font-weight: 600; }
+.ledger-row dd { margin: 0; font: 600 13px/1.75 var(--mono); color: var(--red); text-align: right; }
+.ledger-row .why { grid-column: 1 / -1; color: var(--ink-soft); font: 400 14px/1.75 var(--sans); text-align: left; }
+.warn { --head: 3rem; }
+.warn .idx-head { border-bottom-color: var(--ink); }
+.warn .idx-head h3 { font: 700 18px/1 var(--serif); margin: 0; }
+.warn ul { list-style: none; margin: 0; padding: 0; }
+.warn li { position: relative; padding-left: 26px; color: var(--ink-soft); font-size: 14.5px; }
+.warn li + li { margin-top: var(--lh); }
+.warn li::before { content: "!"; position: absolute; left: 2px; top: 0; font: 800 14px/var(--lh) var(--mono); color: var(--red); }
+.warn li b { color: var(--ink); }
+
+/* ---------- 上手 ---------- */
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border-top: 2px solid var(--ink); border-bottom: 1px solid var(--line); }
+.step { padding: 34px 32px 38px 0; position: relative; }
+.step + .step { padding-left: 32px; border-left: 1px solid var(--line); }
+.step-n { font: 900 84px/1 var(--serif); color: transparent; -webkit-text-stroke: 1.5px var(--red); margin-bottom: 18px; display: block; }
+.step h3 { font: 700 21px/1.3 var(--serif); margin: 0 0 10px; }
+.step p { margin: 0; color: var(--ink-soft); font-size: 14.5px; }
+kbd { font: 600 12px/1 var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 3px 6px; background: var(--card); }
+.ai-tip { margin-top: 30px; display: flex; gap: 16px; align-items: flex-start; padding: 20px 22px; background: rgba(251, 247, 238, 0.6); border: 1px dashed rgba(28, 26, 23, 0.25); border-radius: 4px; font-size: 14.5px; color: var(--ink-soft); }
+.ai-tip strong { font: 700 14.5px/1.75 var(--sans); color: var(--red); white-space: nowrap; letter-spacing: 0.04em; }
+
+/* ---------- 反馈 ---------- */
+.fb { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 48px; align-items: center; }
+.fb .idx { --head: 3rem; }
+.fb ol { margin: 0; padding: 0 0 0 1.4em; color: var(--ink-soft); font-size: 14.5px; }
+.fb ol li::marker { font: 600 12px var(--mono); color: var(--red); }
+.fb-cta { text-align: left; }
+.fb-cta p { color: var(--ink-soft); margin: 0 0 28px; }
+
+footer { border-top: 1px solid var(--line); padding: 30px 0 48px; color: var(--muted); font-size: 13px; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
+
+/* ---------- 动效 ---------- */
+.js .rise { opacity: 0; transform: translateY(18px); }
+.js .rise.in { opacity: 1; transform: none; transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1); transition-delay: var(--d, 0s); }
+/* 首屏不依赖观察器，加载后直接播放 */
+.js .hero .rise { opacity: 0; transform: translateY(18px); animation: rise-in 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; animation-delay: calc(var(--i, 0) * 0.09s); }
+@keyframes rise-in { to { opacity: 1; transform: none; } }
+.js .stamp { animation: stamp-in 0.34s cubic-bezier(0.3, 1.6, 0.5, 1) 0.9s both; }
+@keyframes stamp-in { from { opacity: 0; transform: rotate(-12deg) scale(1.9); } to { opacity: 0.9; transform: rotate(-12deg) scale(1); } }
+
+@media (max-width: 960px) {
+  .hero .wrap, .demo, .data-grid, .fb { grid-template-columns: 1fr; }
+  .hero { padding-top: 48px; }
+  .deck { height: 440px; margin-top: 8px; }
+  .s5, .s7, .s4 { grid-column: span 6; }
+  .wide-body { grid-template-columns: 1fr; }
+  .sec-head { grid-template-columns: 1fr; gap: 18px; }
+  .nav { display: none; }
+  .top .btn { margin-left: auto; }
+}
+@media (max-width: 680px) {
+  body { font-size: 15px; }
+  .wrap { width: calc(100% - 32px); }
+  .sec { padding: 80px 0; }
+  .s5, .s7, .s4 { grid-column: span 12; }
+  .steps { grid-template-columns: 1fr; }
+  .step, .step + .step { padding: 28px 0; border-left: 0; }
+  .step + .step { border-top: 1px solid var(--line); }
+  .deck { height: 420px; }
+  .deck .idx { width: calc(100% - 36px); }
+  .deck:hover .c3, .deck:hover .c2 { transform: none; }
+  .deck .c3 { transform: translate(-46%, -54%) rotate(5deg); }
+  .deck .c2 { transform: translate(-54%, -50%) rotate(-4deg); }
+  .brand-tag { display: none; }
+  .kicker { font-size: 11px; letter-spacing: 0.06em; gap: 10px; }
+  .kicker::before { width: 24px; }
+  .stamp { right: -10px; bottom: -50px; width: 88px; height: 88px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+  .js .rise, .js .hero .rise { opacity: 1; transform: none; }
+  .js .stamp { transform: rotate(-12deg); }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#">
+      <span class="brand-seal">卡</span>
+      <span class="brand-name">角色卡编辑器</span>
+      <span class="brand-tag">BETA</span>
+    </a>
+    <nav class="nav">
+      <a href="#features">能做什么</a>
+      <a href="#demo">试一下</a>
+      <a href="#data">数据放哪</a>
+      <a href="#start">怎么开始</a>
+      <a href="#feedback">反馈</a>
+    </nav>
+    <a class="btn btn-ink btn-sm" href="./app/">打开编辑器 <span class="arr">→</span></a>
+  </div>
+</header>
+
+<main>
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <div class="kicker rise" style="--i:0">SILLYTAVERN · 角色卡 · 世界书 · 美化卡</div>
+      <h1 class="rise" style="--i:1">收藏来的卡，<br />改成<em>你的</em>卡。</h1>
+      <p class="lede rise" style="--i:2">
+        一个给酒馆玩家用的角色卡编辑器。<b>所有字段一页看完</b>，世界书好找好改，<b>导入导出不丢数据</b>，手机上也能顺手改。
+        AI 帮写、世界书触发模拟、小说转卡，都在里面。
+      </p>
+      <div class="cta rise" style="--i:3">
+        <a class="btn btn-ink" href="./app/">打开编辑器 <span class="arr">→</span></a>
+        <a class="btn btn-line" href="#features">先看看能做什么</a>
+      </div>
+      <div class="facts rise" style="--i:4">
+        <span>不用注册</span><span>数据只在你的浏览器里</span><span>手机能用</span><span>V2 / V3 卡</span>
+      </div>
+    </div>
+
+    <div class="deck rise" style="--i:3" aria-hidden="true">
+      <div class="idx c3">
+        <div class="idx-head"><span class="label">正则脚本</span><span class="num">2 个</span></div>
+        <div class="idx-body ghost">
+          <p>隐藏状态栏 · 仅显示</p>
+          <p class="mono">/&lt;status&gt;[\s\S]*?&lt;\/status&gt;/g</p>
+          <p>旁白改斜体 · 仅发送</p>
+          <p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p>
+        </div>
+      </div>
+      <div class="idx c2">
+        <div class="idx-head"><span class="label">世界书 · 雾港</span><span class="num">24 条</span></div>
+        <div class="idx-body ghost">
+          <p>雾港 —— 常驻</p>
+          <p>码头第三巷 —— 巷子、码头</p>
+          <p>晚姐的账本 —— 账本、赊账</p>
+          <p>灯塔守夜人 —— 灯塔、守夜</p>
+          <p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p>
+        </div>
+      </div>
+      <div class="idx c1">
+        <div class="idx-head"><span class="label">角色卡 · V3</span><span class="num">No.0417</span></div>
+        <div class="idx-body">
+          <div class="who"><strong>林晚</strong><span>雾港酒馆的老板娘</span></div>
+          <div class="leader"><span>描述</span><i></i><b>1,204 tokens</b></div>
+          <div class="leader"><span>开场白</span><i></i><b>3 条</b></div>
+          <div class="leader"><span>世界书</span><i></i><b>24 条</b></div>
+          <div class="leader"><span>正则脚本</span><i></i><b>2 个</b></div>
+          <div class="leader"><span>酒馆助手脚本</span><i></i><b>1 个</b></div>
+          <p>“<span class="macro">{{user}}</span>，又是老位置？”</p>
+        </div>
+        <svg class="stamp" viewBox="0 0 100 100">
+          <defs>
+            <filter id="rough" x="-10%" y="-10%" width="120%" height="120%">
+              <feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" seed="7" result="noise" />
+              <feDisplacementMap in="SourceGraphic" in2="noise" scale="3" result="d" />
+              <feTurbulence type="fractalNoise" baseFrequency="2.2" numOctaves="1" seed="3" result="speck" />
+              <feColorMatrix in="speck" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -14 9.6" result="mask" />
+              <feComposite in="d" in2="mask" operator="in" />
+            </filter>
+          </defs>
+          <g filter="url(#rough)">
+            <rect x="5" y="5" width="90" height="90" rx="9" fill="none" stroke="#b2301c" stroke-width="4.5" />
+            <rect x="12" y="12" width="76" height="76" rx="4" fill="#b2301c" />
+            <text x="50" y="47" text-anchor="middle" fill="#fbf2e6" font-size="29" font-weight="900" font-family="Source Han Serif SC, Noto Serif SC, Songti SC, STSong, SimSun, serif">无损</text>
+            <text x="50" y="80" text-anchor="middle" fill="#fbf2e6" font-size="29" font-weight="900" font-family="Source Han Serif SC, Noto Serif SC, Songti SC, STSong, SimSun, serif">往返</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="features">
+  <div class="wrap">
+    <div class="sec-head rise">
+      <div class="sec-no">§ 01</div>
+      <div>
+        <h2>能做什么</h2>
+        <p>从“收一张卡、改两个字”到“把一本小说做成世界卡”，常用的活都放在一处。</p>
+      </div>
+    </div>
+
+    <div class="cat">
+      <article class="idx s5 rise">
+        <div class="idx-head"><span class="no">No.01</span><h3>卡库与编辑</h3></div>
+        <div class="idx-body">
+          <p>网格或列表看全部卡，搜索、排序、贴标签、写备注、批量导出。</p>
+          <p>编辑时所有字段一页看完：宏高亮、XML 标签折叠、全屏编辑、token 估算；开场白拖拽排序、气泡预览。</p>
+          <div class="chips"><span>标签</span><span>备注</span><span>撤销 / 重做</span><span>自动保存</span></div>
+        </div>
+      </article>
+
+      <article class="idx s7 rise">
+        <div class="idx-head"><span class="no">No.02</span><h3>导入导出不丢东西</h3></div>
+        <div class="idx-body">
+          <p>PNG、JSON、CharX 都能导入，拖进去就行。整张卡原样保存，编辑器不认识的字段也一个不丢。</p>
+          <p>导出 PNG 同时写 V2 和 V3 两份数据，新旧版酒馆都能读。导入时自动留一份原件，改了哪些地方随时对比，单处或整卡还原。</p>
+          <div class="chips"><span>PNG</span><span>JSON</span><span>CharX</span><span>原件对比</span></div>
+        </div>
+      </article>
+
+      <article class="idx s7 rise">
+        <div class="idx-head"><span class="no">No.03</span><h3>世界书与触发模拟</h3></div>
+        <div class="idx-body">
+          <p>条目列表可筛选、拖拽排序，设置和内容同屏，批量修改、条目模板、自动检查。</p>
+          <p>触发模拟：写一段模拟聊天，按酒馆 1.16 的规则算出每轮会触发哪些条目，并写明原因——命中哪个关键词、在第几条消息、被哪个条目递归带出来。</p>
+          <div class="chips"><span>递归</span><span>包含组</span><span>粘性 / 冷却</span><span>预算</span></div>
+        </div>
+      </article>
+
+      <article class="idx s5 rise">
+        <div class="idx-head"><span class="no">No.04</span><h3>快捷修改与版本</h3></div>
+        <div class="idx-body">
+          <p>改名向导自动找出卡里的中英日韩人名，全卡查找替换支持正则，逐条确认，整批一键撤销。</p>
+          <p>随时存版本，任选两个版本对比、还原；大改之前会自动存一份。</p>
+        </div>
+      </article>
+
+      <article class="idx s4 rise">
+        <div class="idx-head"><span class="no">No.05</span><h3>美化卡与脚本</h3></div>
+        <div class="idx-body">
+          <p>美化卡实时渲染预览，能跑酒馆助手脚本和 MVU 变量。</p>
+          <p>正则脚本边写边测；酒馆助手脚本有代码补全和语法检查，几十万字也不卡。</p>
+        </div>
+      </article>
+
+      <article class="idx s4 rise">
+        <div class="idx-head"><span class="no">No.06</span><h3>AI 辅助</h3></div>
+        <div class="idx-body">
+          <p>填自己的 key（OpenAI 兼容、Anthropic 格式、Gemini，中转站也行）。</p>
+          <p>字段润色扩写、一句话生成整卡草稿、批量生成世界书条目，侧栏助手和你聊这张卡。改动都先对比，再决定用不用。</p>
+        </div>
+      </article>
+
+      <article class="idx s4 rise">
+        <div class="idx-head"><span class="no">No.07</span><h3>小说转卡</h3></div>
+        <div class="idx-body">
+          <p>导入 EPUB、TXT、MOBI / AZW3、FB2、DOCX，选章节让 AI 整理人物、地点、事件。</p>
+          <p>可以设一个时间点，只用这之前的情节，不剧透后文；生成单角色卡或世界卡。</p>
+        </div>
+      </article>
+
+      <article class="idx s12 rise">
+        <div class="idx-head"><span class="no">No.08</span><h3>随手可用</h3></div>
+        <div class="idx-body wide-body">
+          <p>手机上布局专门调过，通勤路上也能改卡。<span data-secure-only>还能装到桌面或手机主屏，断网也能打开。</span></p>
+          <p>整库备份成一个 zip，换设备时恢复；版本快照一起备份。</p>
+          <p>快捷键：<kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd> 撤销重做，世界书里 <kbd>/</kbd> 搜索、<kbd>Alt</kbd>+<kbd>N</kbd> 新建。</p>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="sec night" id="demo">
+  <div class="wrap">
+    <div class="sec-head rise">
+      <div class="sec-no">§ 02</div>
+      <div>
+        <h2>试一下：给角色改个名</h2>
+        <p>收来的卡想换个名字，最怕漏改或改错。改名向导会先把名字和称呼都找出来，你填新名字，所有出现的地方一起换。下面是个小样，随便改改看。</p>
+      </div>
+    </div>
+
+    <div class="demo">
+      <div class="panel rise">
+        <div class="panel-title">识别到的名字</div>
+        <div class="cand">
+          <span class="cand-name">林晚</span><span class="cand-meta">全名 · <span id="cnt-a">5</span> 处</span>
+          <label>改成 <input id="name-a" value="林晚" autocomplete="off" spellcheck="false" /></label>
+        </div>
+        <div class="cand">
+          <span class="cand-name">晚姐</span><span class="cand-meta">称呼 · <span id="cnt-b">1</span> 处</span>
+          <label>改成 <input id="name-b" value="晚姐" autocomplete="off" spellcheck="false" /></label>
+        </div>
+        <div class="presets">
+          <button type="button" data-a="沈砚" data-b="砚姐">沈砚 / 砚姐</button>
+          <button type="button" data-a="Elena" data-b="Ellie">Elena / Ellie</button>
+          <button type="button" data-a="{{char}}" data-b="晚姐">名字换成 {{char}}</button>
+          <button type="button" data-a="林晚" data-b="晚姐">还原</button>
+        </div>
+        <div class="count">共 <b id="total">0</b> 处修改</div>
+      </div>
+
+      <div class="rise">
+        <div class="idx sheet">
+          <div class="idx-head"><span class="label" style="font:600 11.5px/1 var(--mono);letter-spacing:.12em;color:var(--red)">预览 · 修改后</span></div>
+          <dl class="idx-body" id="sheet"></dl>
+        </div>
+        <p class="demo-note">真正的改名向导会逐条列出每一处，让你勾选确认；改完整批可以一键撤销，改之前还会自动存一个版本。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="data">
+  <div class="wrap">
+    <div class="sec-head rise">
+      <div class="sec-no">§ 03</div>
+      <div>
+        <h2>你的数据放在哪</h2>
+      </div>
+    </div>
+    <div class="data-grid">
+      <div class="rise">
+        <p class="statement">这台服务器<u>只负责把网页发给你</u>。你的卡和 key，都留在你自己的浏览器里。</p>
+        <dl class="ledger">
+          <div class="ledger-row">
+            <dt>角色卡、世界书、正则、版本、小说项目</dt><dd>本机浏览器</dd>
+            <dd class="why">存在你这台设备、这个浏览器的本地数据库（IndexedDB）里。服务器没有数据库，也收不到这些内容。</dd>
+          </div>
+          <div class="ledger-row">
+            <dt>AI 接口地址和 API key</dt><dd>本机浏览器</dd>
+            <dd class="why">存在浏览器的本地存储（localStorage）里。整库备份文件里也不含 key，把备份发给别人不会带出去。</dd>
+          </div>
+          <div class="ledger-row">
+            <dt>调用 AI 的请求</dt><dd>浏览器 → 你填的接口</dd>
+            <dd class="why">从你的浏览器直接发到你填的接口地址，不经过这台服务器。费用走你自己的接口账户。</dd>
+          </div>
+          <div class="ledger-row">
+            <dt>访问记录</dt><dd>不记录</dd>
+            <dd class="why">服务器没开访问日志，页面里也没有统计代码。</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div class="idx warn rise">
+        <div class="idx-head"><h3>所以要注意</h3></div>
+        <div class="idx-body">
+          <ul>
+            <li><b>数据跟着浏览器走。</b>换浏览器、换设备、清理网站数据，或者用无痕窗口，之前的卡就看不到了。重要的卡改完记得导出，或者到「设置 → 备份全部数据」存一份 zip。</li>
+            <li><b>手机和电脑不会自动同步。</b>在一台设备上备份，到另一台用「从备份恢复」搬过去。</li>
+            <li><b>iPhone / iPad 用 Safari 的话，</b>没添加到主屏幕的网站，7 天不打开可能被系统清掉本地数据，更要定期备份。</li>
+            <li><b>美化卡预览会运行卡里自带的脚本，</b>有的卡还会从作者写的地址加载资源。来路不明的卡，先别开渲染预览。</li>
+            <li><b>AI 接口要允许网页直接调用。</b>如果提示网络错误或跨域（CORS）错误，多半是这个接口不支持浏览器直连，换个中转地址试试。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="start" style="padding-top:0">
+  <div class="wrap">
+    <div class="sec-head rise">
+      <div class="sec-no">§ 04</div>
+      <div>
+        <h2>三步上手</h2>
+      </div>
+    </div>
+    <div class="steps rise">
+      <div class="step">
+        <span class="step-n">一</span>
+        <h3>导入</h3>
+        <p>打开编辑器，把酒馆里导出的 PNG 或 JSON 卡拖进卡库，也可以一次多选好几张。</p>
+      </div>
+      <div class="step">
+        <span class="step-n">二</span>
+        <h3>修改</h3>
+        <p>点开卡片，所有字段都在一页。改动自动保存，<kbd>Ctrl</kbd>+<kbd>Z</kbd> 撤销；改坏了还能和导入时的原件对比、还原。</p>
+      </div>
+      <div class="step">
+        <span class="step-n">三</span>
+        <h3>导出</h3>
+        <p>导出 PNG，直接拖回酒馆里用。想一次导出很多张，在卡库里多选后打包成 zip。</p>
+      </div>
+    </div>
+    <div class="ai-tip rise">
+      <strong>用 AI 功能</strong>
+      <span>到「设置」里添加一个 AI 接口：选类型（OpenAI 兼容 / Anthropic 格式 / Gemini），填接口地址、API key 和模型名。小说转卡开始前会先估算请求数和 token，心里有数再跑。</span>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="feedback" style="padding-top:20px">
+  <div class="wrap">
+    <div class="sec-head rise">
+      <div class="sec-no">§ 05</div>
+      <div>
+        <h2>哪里别扭，直接说</h2>
+      </div>
+    </div>
+    <div class="fb">
+      <div class="fb-cta rise">
+        <p>这是自己做的小工具，现在是试用版，最想听真实的使用感受：哪里找不到、哪里坏了、还缺什么、哪一步比你现在的做法更麻烦。好用的地方也欢迎说，免得改着改着改没了。</p>
+        <a class="btn btn-ink" href="./app/">打开编辑器 <span class="arr">→</span></a>
+      </div>
+      <div class="idx rise">
+        <div class="idx-head"><span class="label" style="font:600 11.5px/1 var(--mono);letter-spacing:.12em;color:var(--red)">反馈时附上这些，能快很多</span></div>
+        <div class="idx-body">
+          <ol>
+            <li>设备和浏览器，比如 iPhone Safari、Windows Chrome</li>
+            <li>做了哪几步，想要什么结果，实际发生了什么</li>
+            <li>截图或录屏；有报错就把报错文字一起发</li>
+            <li>出问题的卡（方便的话；有私人内容的就别发了）</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>角色卡编辑器 · 试用版</span>
+    <span>不是 SillyTavern 官方项目 · 本页没有统计代码</span>
+  </div>
+</footer>
+<script>
+(function () {
+  document.documentElement.classList.add('js')
+
+  // 只有 https 访问时才能装到主屏、离线使用
+  if (!window.isSecureContext) {
+    document.querySelectorAll('[data-secure-only]').forEach(function (el) { el.remove() })
+  }
+
+  // ---------- 改名小样 ----------
+  var A = '林晚', B = '晚姐'
+  var fields = [
+    ['名称', ['{A}']],
+    ['描述', ['{A}', '是「雾港」酒馆的老板娘，二十七岁，说话慢，记性好。熟客都叫她', '{B}', '，她也从不纠正。']],
+    ['开场白', ['*', '{A}', '把擦好的杯子放回架上，抬头看见你。* “', '@{{user}}', '，又是老位置？”']],
+    ['世界书 · 雾港', ['雾港是座常年起雾的港口城。', '{A}', '的酒馆开在码头第三条巷子里，招牌是', '{A}', '亲手写的。']],
+  ]
+  var count = { A: 0, B: 0 }
+  fields.forEach(function (f) { f[1].forEach(function (s) { if (s === '{A}') count.A++; if (s === '{B}') count.B++ }) })
+  document.getElementById('cnt-a').textContent = count.A
+  document.getElementById('cnt-b').textContent = count.B
+
+  var inputA = document.getElementById('name-a')
+  var inputB = document.getElementById('name-b')
+  var sheet = document.getElementById('sheet')
+  var total = document.getElementById('total')
+
+  function esc(s) {
+    return s.replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] })
+  }
+  function macros(html) {
+    return html.replace(/\{\{[^{}]*\}\}/g, function (m) { return '<span class="macro">' + m + '</span>' })
+  }
+  function render() {
+    var a = inputA.value.trim() || A
+    var b = inputB.value.trim() || B
+    var changed = 0
+    sheet.innerHTML = fields.map(function (f) {
+      var body = f[1].map(function (s) {
+        if (s === '{A}' || s === '{B}') {
+          var orig = s === '{A}' ? A : B
+          var now = s === '{A}' ? a : b
+          if (now === orig) return '<mark class="hit">' + esc(orig) + '</mark>'
+          changed++
+          return '<mark class="chg" title="原来是：' + esc(orig) + '">' + macros(esc(now)) + '</mark>'
+        }
+        if (s.charAt(0) === '@') return macros(esc(s.slice(1)))
+        return esc(s)
+      }).join('')
+      return '<dt>' + f[0] + '</dt><dd>' + body + '</dd>'
+    }).join('')
+    total.textContent = changed
+  }
+  inputA.addEventListener('input', render)
+  inputB.addEventListener('input', render)
+  document.querySelectorAll('.presets button').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      inputA.value = btn.dataset.a
+      inputB.value = btn.dataset.b
+      render()
+    })
+  })
+  render()
+
+  // ---------- 进场动画 ----------
+  var items = Array.prototype.filter.call(document.querySelectorAll('.rise'), function (el) { return !el.closest('.hero') })
+  if (!('IntersectionObserver' in window)) {
+    items.forEach(function (el) { el.classList.add('in') })
+    return
+  }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (!e.isIntersecting) return
+      e.target.classList.add('in')
+      io.unobserve(e.target)
+    })
+  }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 })
+  document.querySelectorAll('.cat .rise').forEach(function (el, i) { el.style.setProperty('--d', (i % 3) * 0.08 + 's') })
+  items.forEach(function (el) { io.observe(el) })
+})()
+</script>
+</body>
+</html>
