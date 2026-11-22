@@ -1,5 +1,3 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { produce } from 'immer'
 import { describe, expect, it } from 'vitest'
 import { parseCardPng, writeCardPng } from '../../src/core/card/io'
@@ -26,6 +24,7 @@ import {
   type HelperScript,
 } from '../../src/core/tavern-helper/scripts'
 import { base64ToUtf8 } from '../../src/core/util/base64'
+import { loadLocalCards } from '../sample'
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v))
 
@@ -397,9 +396,7 @@ describe('旧格式升级与清理', () => {
   })
 })
 
-// —— 本机测试卡往返（用 TH_CARD_DIR 指定目录，未设置或不存在时跳过；测试名只用序号，不输出正文） ——
-
-const CARD_DIR = process.env.TH_CARD_DIR ?? ''
+// —— 本机测试卡往返（用 LOCAL_CARD_DIR 指定目录，未设置或不存在时跳过；测试名只用序号，不输出正文） ——
 
 function ccv3Text(png: Uint8Array): string {
   const entry = getTextEntries(readChunks(png)).find((e) => e.keyword === 'ccv3')
@@ -408,13 +405,12 @@ function ccv3Text(png: Uint8Array): string {
 }
 
 function loadHelperCards() {
-  if (!existsSync(CARD_DIR)) return []
   const cards: { label: string; bytes: Uint8Array }[] = []
-  for (const [i, file] of readdirSync(CARD_DIR).filter((f) => f.toLowerCase().endsWith('.png')).entries()) {
-    const bytes = new Uint8Array(readFileSync(join(CARD_DIR, file)))
+  for (const { label, bytes, kind } of loadLocalCards()) {
+    if (kind !== 'png') continue
     try {
       const ext = parseCardPng(bytes).card.data.extensions
-      if (readHelper(ext).format !== null) cards.push({ label: `#${i + 1}`, bytes })
+      if (readHelper(ext).format !== null) cards.push({ label, bytes })
     } catch {
       // 不是角色卡或解析失败，跳过
     }

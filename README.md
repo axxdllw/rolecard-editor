@@ -21,7 +21,7 @@
 ```bash
 npm install
 npm run dev        # 本地开发，http://localhost:5173
-npm test           # 单元测试（样本卡相关用例需本地放好样本卡，否则跳过）
+npm test           # 单元测试（样本卡相关用例需本地放好样本卡，否则跳过；设置 LOCAL_CARD_DIR 可对本机卡目录跑往返测试）
 npm run typecheck  # 类型检查
 npm run lint       # 代码检查（oxlint）
 npm run build      # 打包到 dist/，可直接部署到任意静态托管
