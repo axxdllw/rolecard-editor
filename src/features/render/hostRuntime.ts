@@ -52,6 +52,15 @@ export interface HostSession {
   extensionSettings: Record<string, unknown> | null
 }
 
+/*
+ * 宿主页发给编辑器的消息（postMessage，全部可 JSON 序列化）：
+ * - rce-ready / rce-log / rce-settings
+ * - rce-state：{ seq, floors: [{ messageId, isUser, variables }] }，各楼层当前的变量
+ * - rce-mvu-init：{ seq, init }，MVU 初始化第 0 楼变量的记录（字段见 core/mvu/records 的 MvuInitRecord）
+ * - rce-mvu-update：{ seq, update }，一轮变量更新的记录（MvuUpdateRecord）
+ * seq 是会话编号，编辑器只保留最新会话的数据。
+ */
+
 export interface HostConfig {
   apiNames: string[]
   notExecuted: string[]
@@ -130,6 +139,7 @@ export function hostRuntime(cfg: HostConfig) {
       if (i > -1) list.splice(i, 1)
     },
     async emit(event: string, ...args: unknown[]) {
+      tapEvent(event, 0, args)
       for (const listener of [...(events[event] ?? [])]) {
         try {
           await listener.apply(eventSource, args)
@@ -138,8 +148,10 @@ export function hostRuntime(cfg: HostConfig) {
         }
       }
       if (AUTO_FIRE.has(event)) autoFireArgs.set(event, args)
+      tapEvent(event, 1, args)
     },
     emitAndWait(event: string, ...args: unknown[]) {
+      tapEvent(event, 0, args)
       for (const listener of [...(events[event] ?? [])]) {
         try {
           listener.apply(eventSource, args)
@@ -148,6 +160,7 @@ export function hostRuntime(cfg: HostConfig) {
         }
       }
       if (AUTO_FIRE.has(event)) autoFireArgs.set(event, args)
+      tapEvent(event, 1, args)
     },
     once(event: string, listener: Fn) {
       const g = function (this: Any, ...args: Any[]) {
@@ -202,9 +215,8 @@ export function hostRuntime(cfg: HostConfig) {
 
   const scheduleState = _.debounce(() => {
     try {
-      const latest = chat.at(-1)
-      const variables = latest?.variables?.[latest?.swipe_id ?? 0] ?? {}
-      postUp({ type: 'rce-state', messageId: chat.length - 1, variables: JSON.parse(JSON.stringify(variables)) })
+      const floors = chat.map((m: Any, i: number) => ({ messageId: i, isUser: !!m?.is_user, variables: m?.variables?.[m?.swipe_id ?? 0] ?? {} }))
+      postUp({ type: 'rce-state', seq: session?.seq ?? 0, floors: JSON.parse(JSON.stringify(floors)) })
     } catch (e) {
       hostLog('warn', '变量无法序列化：', e)
     }
@@ -216,6 +228,181 @@ export function hostRuntime(cfg: HostConfig) {
       // 有函数等无法序列化的内容时不保存
     }
   }, 500)
+
+  // ---------------- MVU 工作台：旁听 MVU 的事件，整理后发给编辑器 ----------------
+  // 对照 MagVarUpdate 的 initvar/variable_init.ts、update_variables.ts，以及「变量结构」脚本用的 mvu_zod.js：
+  // - 初始化：mag_variable_initialized(variables, swipe_id)，变量结构在它的监听器里用 zod 校验并补默认值；
+  // - 更新：mag_variable_update_started → mag_command_parsed(variables, commands) → mag_command_parsed_for_zod
+  //   （变量结构逐条执行命令，成功的从 commands 里移除，失败原因交给第 4 个参数的回调）→ MVU 自己执行剩下的命令
+  //   （失败时 console.warn 标题带命令原文）→ mag_variable_update_ended → mag_variable_update_ended_for_zod。
+  let activeFloor = 0
+  let mvuInit: Any = null
+  let mvuUpdate: Any = null
+  const toJson = (v: Any): Any => {
+    try {
+      return v === undefined ? undefined : JSON.parse(JSON.stringify(v))
+    } catch {
+      return null
+    }
+  }
+  const shortJson = (v: Any): string => {
+    if (typeof v === 'number' && !Number.isFinite(v)) return String(v)
+    try {
+      return String(JSON.stringify(v) ?? v).slice(0, 300)
+    } catch {
+      return String(v).slice(0, 300)
+    }
+  }
+  const statSnapshot = (variables: Any) => toJson(_.omit(variables?.stat_data ?? {}, '$internal'))
+  const sendMvu = (type: string, payload: Any) => postUp({ type, seq: session?.seq ?? 0, ...payload })
+
+  /** 用变量结构注册的 schema 再校验一遍，拿到结构化的问题列表（MVU zod 只把它们拼成文字弹出） */
+  function zodCheck(before: Any) {
+    const schema = variableSchemas.message
+    if (!schema || typeof schema.safeParse !== 'function') return { issues: [] }
+    try {
+      const result = schema.safeParse({ stat_data: clone(before) }, { reportInput: true })
+      if (result.success) return { issues: [] }
+      const issues = (result.error?.issues ?? []).map((i: Any) => {
+        const path = (Array.isArray(i.path) ? i.path : []).map(String)
+        return {
+          path: path[0] === 'stat_data' ? path.slice(1) : path,
+          message: String(i.message ?? ''),
+          ...(i.input !== undefined ? { input: shortJson(i.input) } : {}),
+        }
+      })
+      return { issues }
+    } catch (e: Any) {
+      return { issues: [], error: String(e?.message ?? e) }
+    }
+  }
+  function initBefore(args: Any[]) {
+    mvuInit = { swipeId: Number(args[1]) || 0, before: statSnapshot(args[0]) }
+  }
+  function initAfter(args: Any[]) {
+    const record = mvuInit
+    mvuInit = null
+    if (!record) return
+    const zod = !!variableSchemas.message
+    sendMvu('rce-mvu-init', { init: { ...record, zod, after: statSnapshot(args[0]), ...(zod ? zodCheck(record.before) : { issues: [] }) } })
+  }
+
+  /** 把一条报错对应到命令：报错标题里带着命令原文（full_match） */
+  function noteCommandError(u: Any, text: string): boolean {
+    const [title, ...rest] = text.split('\n')
+    const command = u.commands.find((c: Any) => c.status !== 'failed' && c.fullMatch && title.includes(c.fullMatch))
+    if (!command) return false
+    command.status = 'failed'
+    command.error = (rest.join('\n').trim() || title).slice(0, 4000)
+    return true
+  }
+  function finishUpdate(u: Any) {
+    if (!u || mvuUpdate !== u) return
+    mvuUpdate = null
+    const after = statSnapshot(u.variables)
+    if (!u.zod) {
+      // MVU 自己执行的命令：按顺序对上它发的 mag_variable_updated（带新旧值），
+      // 对不上的（如 move 不发事件）看目标路径的值有没有变
+      const related = (a: string[], b: string[]) => a.slice(0, Math.min(a.length, b.length)).every((s, k) => s === b[k])
+      u.refs.forEach((ref: Any, i: number) => {
+        const command = u.commands[i]
+        if (command.status === 'failed') return
+        const args = Array.isArray(ref?.args) ? ref.args : []
+        const paths: string[][] = (ref?.type === 'move' ? args.slice(0, 2) : args.slice(0, 1)).map((p: Any) => _.toPath(String(p)))
+        const event = u.touched.find((t: Any) => !t.used && paths.some((p) => related(t.path, p)))
+        if (event) {
+          event.used = true
+          command.status = event.changed ? 'applied' : 'noop'
+          return
+        }
+        const changed = paths.some((p) => (p.length ? !_.isEqual(_.get(u.before, p), _.get(after, p)) : !_.isEqual(u.before, after)))
+        command.status = changed ? 'applied' : 'noop'
+      })
+    }
+    sendMvu('rce-mvu-update', {
+      update: { messageId: u.messageId, zod: u.zod, commands: u.commands, before: u.before, after, errors: u.errors },
+    })
+  }
+  function updateStarted(args: Any[]) {
+    finishUpdate(mvuUpdate)
+    mvuUpdate = { messageId: activeFloor, variables: args[0], before: statSnapshot(args[0]), refs: [], commands: [], zod: false, errors: [], touched: [] }
+  }
+  function commandsParsed(args: Any[]) {
+    const u = mvuUpdate
+    if (!u || !Array.isArray(args[1])) return
+    // 卡片自己的 mag_command_parsed 监听器可能改过命令，这里取改完的
+    u.refs = [...args[1]]
+    u.commands = u.refs.map((c: Any) => ({
+      type: String(c?.type ?? ''),
+      fullMatch: String(c?.full_match ?? ''),
+      args: Array.isArray(c?.args) ? c.args.map((a: Any) => (typeof a === 'string' ? a : shortJson(a))) : [],
+      reason: String(c?.reason ?? ''),
+      status: 'noop',
+    }))
+  }
+  function zodParsedBefore(args: Any[]) {
+    const u = mvuUpdate
+    if (!u) return
+    u.zod = (events['mag_command_parsed_for_zod']?.length ?? 0) > 0
+    if (!u.zod) return
+    // 第 4 个参数是 MVU zod 的报错回调：没有时它按「变量更新出错」通知设置弹出提示（默认关闭），这里接过来记下原因
+    const original = args[3]
+    const notify = typeof original !== 'function' && !!$?.('#mvu_notification_error').prop('checked')
+    args[3] = (detail: unknown) => {
+      const text = String(detail)
+      if (!noteCommandError(u, text)) u.errors.push(text.slice(0, 4000))
+      if (typeof original === 'function') {
+        original(detail)
+      } else if (notify) {
+        const [title, ...rest] = text.split('\n')
+        w.toastr?.warning(_.escape(rest.join('\n')).replace(/\n/g, '<br>'), `[MVU zod]${title}`, { escapeHtml: false })
+      }
+    }
+  }
+  function zodParsedAfter(args: Any[]) {
+    const u = mvuUpdate
+    if (!u?.zod || !Array.isArray(args[1])) return
+    // 变量结构执行成功的命令会被移出 commands
+    u.refs.forEach((ref: Any, i: number) => {
+      if (!args[1].includes(ref) && u.commands[i].status !== 'failed') u.commands[i].status = 'applied'
+    })
+  }
+  function updateEnded() {
+    const u = mvuUpdate
+    // 旧版 MVU 没有 mag_variable_update_ended_for_zod，兜底在本轮事件处理完后收尾
+    if (u) setTimeout(() => finishUpdate(u), 0)
+  }
+  const MVU_TAPS: Record<string, Array<((args: Any[]) => void) | null>> = {
+    mag_variable_initialized: [initBefore, initAfter],
+    mag_variable_initiailized: [initBefore, initAfter],
+    mag_variable_update_started: [updateStarted, null],
+    mag_command_parsed: [null, commandsParsed],
+    mag_command_parsed_for_zod: [zodParsedBefore, zodParsedAfter],
+    // (stat_data, path, 旧值, 新值)：在监听器改动之前记下这次有没有真的改值
+    mag_variable_updated: [(args) => mvuUpdate?.touched.push({ path: _.toPath(String(args[1] ?? '')), changed: !_.isEqual(args[2], args[3]) }), null],
+    mag_variable_update_ended: [null, updateEnded],
+    mag_variable_update_ended_for_zod: [null, () => finishUpdate(mvuUpdate)],
+  }
+  /** 事件总线在调用监听器前（phase 0）和全部调用完后（phase 1）通知这里 */
+  function tapEvent(event: string, phase: 0 | 1, args: Any[]) {
+    try {
+      MVU_TAPS[event]?.[phase]?.(args)
+    } catch (e) {
+      hostLog('warn', `整理 MVU 事件 ${event} 时出错：`, e)
+    }
+  }
+  // MVU 自己执行命令出错时只 console.warn（标题带命令原文），日志经过这里时对应到命令
+  const baseLog = w.__rceLog
+  w.__rceLog = (source: string, level: string, args: unknown[]) => {
+    if (mvuUpdate && level === 'warn') {
+      try {
+        noteCommandError(mvuUpdate, args.map((a) => (typeof a === 'string' ? a : '')).join(' '))
+      } catch {
+        // 只是旁听，出错不影响日志
+      }
+    }
+    baseLog(source, level, args)
+  }
 
   // ---------------- iframe 身份（酒馆助手 function/util.ts） ----------------
   function getIframeName(this: Any): string {
@@ -1334,6 +1521,9 @@ export function hostRuntime(cfg: HostConfig) {
     chatEl.replaceChildren()
     emptyEl.hidden = s.messages.length > 0
     editedNotified.clear()
+    activeFloor = 0
+    mvuInit = null
+    mvuUpdate = null
     chat.length = 0
     chatId = `preview-${s.seq}`
     chatMetadata = { variables: {} }
@@ -1362,6 +1552,7 @@ export function hostRuntime(cfg: HostConfig) {
     }
     for (let i = 1; i < s.messages.length; i++) {
       const m = s.messages[i]
+      activeFloor = i
       if (m.isUser) {
         chat.push(makeChatMessage(m, seedFor(i)))
         await eventSource.emit(tavern_events.MESSAGE_SENT, i)

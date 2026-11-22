@@ -14,9 +14,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import type { JsonObject, Lorebook } from '@/core/card/types'
 import { lorebookToWorld } from '@/core/lorebook/world'
+import { readFloors, readMvuInit, readMvuUpdate, statData } from '@/core/mvu/records'
+import { buildSampleUpdate } from '@/core/mvu/sample'
 import { receiveMessage } from '@/core/render/display'
 import { enabledHelperScripts, helperCharacterVariables, usesMvu } from '@/core/render/helperScripts'
-import { initVariablesFromBook } from '@/core/render/initvar'
+import { initVariablesFromBook, inspectInitvar } from '@/core/render/initvar'
 import { getRegexScripts } from '@/core/regex/regex'
 import { db, type CardPreviewData } from '@/db/db'
 import { useCardDoc } from '@/features/editor/cardDoc'
@@ -25,11 +27,17 @@ import { cn } from '@/lib/utils'
 import { formatMessage } from './formatMessage'
 import { HOST_SANDBOX, hostDocumentUrl } from './hostFrame'
 import type { HostMessage, HostSession } from './hostRuntime'
+import MvuWorkbench, { type MvuWorkbenchState } from './MvuWorkbench'
 import { buildFrontendDocument, buildScriptDocument } from './thShim'
 
 const DEFAULT_PREVIEW: CardPreviewData = { greeting: 0, exchange: false, userMessage: '', aiReply: '', variables: '', runScripts: true }
 const RENDER_DELAY = 300
 const MAX_LOGS = 300
+const MAX_UPDATES = 20
+
+/** 预览宿主页发来的变量数据，seq 是对应的会话编号（只保留最新一次会话的） */
+type MvuState = MvuWorkbenchState & { seq: number }
+const EMPTY_MVU: MvuState = { seq: -1, init: null, updates: [], floors: [] }
 
 /** 脚本写进酒馆扩展设置的内容（如 MVU 的设置），在宿主页重建之间保留 */
 let savedExtensionSettings: Record<string, unknown> | null = null
@@ -143,7 +151,7 @@ export default function RenderPanel({ cardId, avatar, onClose, className }: Rend
   const [reloadKey, setReloadKey] = useState(0)
   const [readyKey, setReadyKey] = useState<string | null>(null)
   const [varsDraft, setVarsDraft] = useState<string | null>(null)
-  const [runtime, setRuntime] = useState<{ messageId: number; variables: Record<string, unknown> } | null>(null)
+  const [mvuState, setMvuState] = useState<MvuState>(EMPTY_MVU)
   const frameRef = useRef<HTMLIFrameElement>(null)
   const logId = useRef(0)
   const seq = useRef(0)
@@ -172,6 +180,8 @@ export default function RenderPanel({ cardId, avatar, onClose, className }: Rend
 
   // 变量：手动改过的优先，否则取世界书里的 [initvar]
   const initVars = useMemo(() => initVariablesFromBook(card?.data.character_book as Lorebook | undefined), [card?.data.character_book])
+  const characterBook = card?.data.character_book as Lorebook | undefined
+  const initvarReports = useMemo(() => (mvu ? inspectInitvar(characterBook) : []), [mvu, characterBook])
   const manualVars = useMemo(() => parseObject(preview.variables), [preview.variables])
 
   // 组装一次会话（防抖），交给宿主页重放
@@ -238,19 +248,31 @@ export default function RenderPanel({ cardId, avatar, onClose, className }: Rend
 
   // 只接收预览页发来的消息，内容一律当纯文本显示
   useEffect(() => {
+    /** 同一会话的数据累加，新会话的数据替换旧的 */
+    const acceptMvu = (rawSeq: unknown, apply: (state: MvuState) => MvuState) => {
+      const seqNo = Number(rawSeq)
+      if (!Number.isInteger(seqNo)) return
+      setMvuState((prev) => (seqNo < prev.seq ? prev : apply(seqNo > prev.seq ? { ...EMPTY_MVU, seq: seqNo } : prev)))
+    }
     const onMessage = (e: MessageEvent) => {
       if (e.source !== frameRef.current?.contentWindow) return
       const data = e.data as { type?: string; level?: string; text?: string; source?: string; [k: string]: unknown } | null
       if (data?.type === 'rce-ready') {
         lastSession.current = ''
-        setRuntime(null)
+        setMvuState(EMPTY_MVU)
         setReadyKey(hostKeyRef.current)
       } else if (data?.type === 'rce-log') {
         const entry: LogEntry = { id: ++logId.current, level: String(data.level), source: String(data.source ?? ''), text: String(data.text ?? '') }
         setLogs((prev) => [...prev, entry].slice(-MAX_LOGS))
       } else if (data?.type === 'rce-state') {
-        const variables = data.variables
-        if (variables && typeof variables === 'object') setRuntime({ messageId: Number(data.messageId), variables: variables as Record<string, unknown> })
+        const floors = readFloors(data.floors)
+        acceptMvu(data.seq, (s) => ({ ...s, floors }))
+      } else if (data?.type === 'rce-mvu-init') {
+        const init = readMvuInit(data.init)
+        if (init) acceptMvu(data.seq, (s) => ({ ...s, init }))
+      } else if (data?.type === 'rce-mvu-update') {
+        const update = readMvuUpdate(data.update)
+        if (update) acceptMvu(data.seq, (s) => ({ ...s, updates: [...s.updates, update].slice(-MAX_UPDATES) }))
       } else if (data?.type === 'rce-settings') {
         if (data.extensionSettings && typeof data.extensionSettings === 'object') savedExtensionSettings = data.extensionSettings as Record<string, unknown>
       }
@@ -270,10 +292,64 @@ export default function RenderPanel({ cardId, avatar, onClose, className }: Rend
     }
   }
 
+  // 按最新楼层的变量（没有时用 [initvar]）生成示例命令，追加到模拟对话的 AI 回复
+  const insertSample = () => {
+    const latest = mvuState.floors.at(-1)
+    const base = (latest && statData(latest.variables)) ?? mvuState.init?.after ?? initVars.data
+    const sample = buildSampleUpdate(base)
+    if (!sample) {
+      toast.error('当前变量里没有数值字段，没法生成 delta 示例')
+      return
+    }
+    const reply = preview.aiReply.trimEnd()
+    updatePreview({ exchange: true, aiReply: reply ? `${reply}\n\n${sample}` : `（示例回复正文）\n\n${sample}` })
+    toast.success('已在 AI 回复末尾插入示例更新命令')
+  }
+
   if (!card) return null
 
+  const manualEditor = (
+    <div className="flex flex-col gap-1.5">
+      <p className="text-xs text-muted-foreground">
+        {mvu ? '初始变量（可选）：填写后作为第 0 楼的 stat_data，MVU 会再合并世界书的 [initvar]。' : '前端里 getVariables / Mvu 读到的 stat_data。'}
+        {initVars.sources.length > 0 ? `默认取自世界书：${initVars.sources.join('、')}` : '世界书里没有 [initvar] 条目。'}
+        {initVars.errors.map((e) => (
+          <span key={e} className="block text-destructive">
+            {e}
+          </span>
+        ))}
+      </p>
+      <Textarea rows={8} className="max-h-64 font-mono text-xs" value={varsText} onChange={(e) => setVarsDraft(e.target.value)} />
+      {varsError && <p className="text-xs text-destructive">JSON 格式错误：{varsError}</p>}
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          disabled={varsDraft === null || !!varsError}
+          onClick={() => {
+            updatePreview({ variables: varsDraft ?? '' })
+            setVarsDraft(null)
+            toast.success('变量已应用')
+          }}
+        >
+          应用
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!preview.variables && varsDraft === null}
+          onClick={() => {
+            updatePreview({ variables: '' })
+            setVarsDraft(null)
+          }}
+        >
+          恢复默认
+        </Button>
+      </div>
+    </div>
+  )
+
   return (
-    <div className={cn('flex min-h-0 flex-col gap-2', className)}>
+    <div className={cn('flex min-h-0 flex-col gap-2 overflow-y-auto', className)}>
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium">渲染预览</span>
         <Select value={String(greetingIndex)} onValueChange={(v) => updatePreview({ greeting: Number(v) })}>
@@ -362,55 +438,14 @@ export default function RenderPanel({ cardId, avatar, onClose, className }: Rend
         <span className="truncate text-xs text-muted-foreground">需要联网加载前端库；脚本在与编辑器隔离的预览页里运行</span>
       </div>
 
-      {section === 'vars' && (
-        <div className="flex flex-col gap-1.5">
-          {mvu && (
-            <>
-              <p className="text-xs text-muted-foreground">
-                MVU 算出的变量（第 {runtime?.messageId ?? '-'} 楼）。打开「模拟对话」并粘贴带变量更新的回复，可以看到变化。
-              </p>
-              <pre className="max-h-64 overflow-auto rounded-md border bg-muted/30 p-2 font-mono text-xs">
-                {runtime ? JSON.stringify(runtime.variables.stat_data ?? runtime.variables, null, 2) : '等待 MVU 初始化…'}
-              </pre>
-            </>
-          )}
-          <p className="text-xs text-muted-foreground">
-            {mvu ? '初始变量（可选）：填写后作为第 0 楼的 stat_data，MVU 会再合并世界书的 [initvar]。' : '前端里 getVariables / Mvu 读到的 stat_data。'}
-            {initVars.sources.length > 0 ? `默认取自世界书：${initVars.sources.join('、')}` : '世界书里没有 [initvar] 条目。'}
-            {initVars.errors.map((e) => (
-              <span key={e} className="block text-destructive">
-                {e}
-              </span>
-            ))}
-          </p>
-          <Textarea rows={8} className="max-h-64 font-mono text-xs" value={varsText} onChange={(e) => setVarsDraft(e.target.value)} />
-          {varsError && <p className="text-xs text-destructive">JSON 格式错误：{varsError}</p>}
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              disabled={varsDraft === null || !!varsError}
-              onClick={() => {
-                updatePreview({ variables: varsDraft ?? '' })
-                setVarsDraft(null)
-                toast.success('变量已应用')
-              }}
-            >
-              应用
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!preview.variables && varsDraft === null}
-              onClick={() => {
-                updatePreview({ variables: '' })
-                setVarsDraft(null)
-              }}
-            >
-              恢复默认
-            </Button>
+      {section === 'vars' &&
+        (mvu ? (
+          <div className="max-h-[55svh] shrink-0 overflow-y-auto">
+            <MvuWorkbench initvar={initvarReports} state={mvuState} exchange={preview.exchange} onInsertSample={insertSample} manual={manualEditor} />
           </div>
-        </div>
-      )}
+        ) : (
+          manualEditor
+        ))}
 
       {section === 'log' && (
         <div className="flex max-h-56 flex-col gap-1 overflow-auto rounded-md border bg-muted/30 p-2 font-mono text-xs">
