@@ -1,4 +1,5 @@
 import {
+  BookOpenIcon,
   CheckSquareIcon,
   CopyIcon,
   DownloadIcon,
@@ -45,6 +46,7 @@ import {
   deleteCards,
   duplicateCard,
   exportCardJson,
+  exportCardLorebook,
   exportCardPng,
   exportCardsZip,
 } from '@/services/cards'
@@ -70,12 +72,15 @@ function statLine(record: CardRecord): string {
   return parts.join(' · ')
 }
 
-async function exportOne(record: CardRecord, format: 'png' | 'json') {
+async function exportOne(record: CardRecord, format: 'png' | 'json' | 'lorebook') {
   try {
     if (format === 'png') {
       downloadBlob(await exportCardPng(record), `${cardFileBase(record)}.png`, 'image/png')
-    } else {
+    } else if (format === 'json') {
       downloadBlob(exportCardJson(record), `${cardFileBase(record)}.json`, 'application/json')
+    } else {
+      const lorebook = exportCardLorebook(record)
+      if (lorebook) downloadBlob(lorebook.json, lorebook.fileName, 'application/json')
     }
   } catch (error) {
     toast.error(`导出失败：${error instanceof Error ? error.message : String(error)}`)
@@ -201,8 +206,13 @@ export default function LibraryPage() {
           <DownloadIcon /> 导出 PNG
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => exportOne(record, 'json')}>
-          <FileJsonIcon /> 导出 JSON
+          <FileJsonIcon /> 导出角色卡 JSON
         </DropdownMenuItem>
+        {record.stats.entries > 0 && (
+          <DropdownMenuItem onClick={() => exportOne(record, 'lorebook')}>
+            <BookOpenIcon /> 导出世界书 JSON
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onClick={() => setMetaId(record.id)}>
           <TagIcon /> 标签与备注
         </DropdownMenuItem>

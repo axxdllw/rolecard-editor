@@ -1,5 +1,6 @@
 import {
   ArrowLeftIcon,
+  BookOpenIcon,
   BotIcon,
   CheckIcon,
   CopyIcon,
@@ -45,7 +46,7 @@ import { downloadBlob, pickFiles } from '@/lib/files'
 import { useSettings, type SidePanelTab } from '@/lib/settings'
 import { useMediaQuery } from '@/lib/useMediaQuery'
 import { cn } from '@/lib/utils'
-import { cardFileBase, duplicateCard, exportCardJson, exportCardPng, saveCard } from '@/services/cards'
+import { cardFileBase, duplicateCard, exportCardJson, exportCardLorebook, exportCardPng, saveCard } from '@/services/cards'
 import { setCardAvatar } from '@/services/originals'
 import { makeCardDoc, updateCardBook, useCardDoc, type CardDoc } from './cardDoc'
 import { CharacterTab } from './CharacterTab'
@@ -158,11 +159,15 @@ function Editor({ record }: { record: CardRecord }) {
     if (file) setCropSource(file)
   }
 
-  const exportAs = async (format: 'png' | 'json') => {
+  const exportAs = async (format: 'png' | 'json' | 'lorebook') => {
     if (!card) return
     try {
       if (format === 'png') downloadBlob(await exportCardPng({ card, avatar }), `${cardFileBase({ card })}.png`, 'image/png')
-      else downloadBlob(exportCardJson({ card }), `${cardFileBase({ card })}.json`, 'application/json')
+      else if (format === 'json') downloadBlob(exportCardJson({ card }), `${cardFileBase({ card })}.json`, 'application/json')
+      else {
+        const lorebook = exportCardLorebook({ card })
+        if (lorebook) downloadBlob(lorebook.json, lorebook.fileName, 'application/json')
+      }
     } catch (error) {
       toast.error(`导出失败：${error instanceof Error ? error.message : String(error)}`)
     }
@@ -265,7 +270,10 @@ function Editor({ record }: { record: CardRecord }) {
                 <ImageIcon /> 导出 PNG（ST 可直接导入）
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => exportAs('json')}>
-                <FileJsonIcon /> 导出 JSON
+                <FileJsonIcon /> 导出角色卡 JSON
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={!book?.entries.length} onClick={() => exportAs('lorebook')}>
+                <BookOpenIcon /> 导出世界书 JSON（ST 世界书面板导入）
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem

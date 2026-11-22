@@ -16,6 +16,7 @@ import { fileKind, safeFileName } from '@/lib/files'
 import { blobToBytes, bytesToBlob, defaultAvatarPng, toPngBlob } from '@/lib/image'
 import { countTokens } from '@/lib/tokens'
 import { deleteAssistantChats } from './assistantChats'
+import { exportLorebookJson } from './lorebooks'
 import { copyOriginal, deleteOriginals, saveImportOriginal } from './originals'
 import { deleteSnapshotsOfCards } from './snapshots'
 
@@ -237,6 +238,14 @@ export async function exportCardPng(record: Pick<CardRecord, 'card' | 'avatar'>)
 
 export function exportCardJson(record: Pick<CardRecord, 'card'>): string {
   return serializeCardJson(record.card)
+}
+
+/** 卡内世界书单独导出为 ST 世界书 JSON（ST 世界书面板只认这种格式）；卡里没有条目时返回 null */
+export function exportCardLorebook(record: Pick<CardRecord, 'card'>): { json: string; fileName: string } | null {
+  const book = record.card.data.character_book
+  if (!book?.entries.length) return null
+  const base = safeFileName(book.name ?? '', '') || `${cardFileBase(record)}-世界书`
+  return { json: exportLorebookJson(book), fileName: `${base}.json` }
 }
 
 /** 批量导出为 zip，每张卡一个 PNG，重名时自动加序号 */
