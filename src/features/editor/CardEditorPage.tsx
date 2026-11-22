@@ -34,6 +34,8 @@ import { countScripts } from '@/core/tavern-helper/scripts'
 import { db, type CardRecord } from '@/db/db'
 import { DependencySheet, DependencySummary } from '@/features/deps/DependencyPanel'
 import { jumpTarget, revealAnchor, useDependencyReport } from '@/features/deps/jump'
+import { OriginalSheet, OriginalSummary } from '@/features/originals/OriginalPanel'
+import { useOriginalState } from '@/features/originals/useOriginalState'
 import { PromptPreview } from '@/features/preview/PromptPreview'
 import { QuickEditDialog } from '@/features/quick-edit/QuickEditDialog'
 import { RegexPanel } from '@/features/regex/RegexPanel'
@@ -43,6 +45,7 @@ import { useSettings } from '@/lib/settings'
 import { useMediaQuery } from '@/lib/useMediaQuery'
 import { cn } from '@/lib/utils'
 import { cardFileBase, duplicateCard, exportCardJson, exportCardPng, saveCard } from '@/services/cards'
+import { setCardAvatar } from '@/services/originals'
 import { makeCardDoc, updateCardBook, useCardDoc, type CardDoc } from './cardDoc'
 import { CharacterTab } from './CharacterTab'
 import { useAutosave, type SaveStatus } from './autosave'
@@ -109,10 +112,12 @@ function Editor({ record }: { record: CardRecord }) {
   const [cropSource, setCropSource] = useState<Blob | null>(null)
   const [quickOpen, setQuickOpen] = useState(false)
   const [depsOpen, setDepsOpen] = useState(false)
+  const [originalOpen, setOriginalOpen] = useState(false)
   // 依赖体检跳到世界书条目或正则时，交给对应面板去选中
   const [focus, setFocus] = useState<{ loc: DepLocation; nonce: number } | null>(null)
   const card = useCardDoc((s) => s.doc?.card)
   const depReport = useDependencyReport(card)
+  const originalState = useOriginalState(record.id, card, avatar)
   const entryKeys = useCardDoc((s) => s.doc?.entryKeys ?? EMPTY_KEYS)
   const canUndo = useCardDoc((s) => s.past.length > 0)
   const canRedo = useCardDoc((s) => s.future.length > 0)
@@ -175,7 +180,7 @@ function Editor({ record }: { record: CardRecord }) {
               <DropdownMenuItem
                 onClick={async () => {
                   setAvatar(null)
-                  await db.cards.update(record.id, { avatar: null, updatedAt: Date.now() })
+                  await setCardAvatar(record.id, null)
                 }}
               >
                 移除头像
@@ -189,6 +194,7 @@ function Editor({ record }: { record: CardRecord }) {
             <SaveIndicator status={status} />
             {record.sourceFormat === 'copy' && <Badge variant="secondary">副本</Badge>}
             <DependencySummary report={depReport} onOpen={() => setDepsOpen(true)} />
+            <OriginalSummary state={originalState} onOpen={() => setOriginalOpen(true)} />
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1">
@@ -311,13 +317,22 @@ function Editor({ record }: { record: CardRecord }) {
 
       <QuickEditDialog open={quickOpen} onOpenChange={setQuickOpen} />
       <DependencySheet open={depsOpen} onOpenChange={setDepsOpen} report={depReport} onJump={jumpTo} />
+      <OriginalSheet
+        open={originalOpen}
+        onOpenChange={setOriginalOpen}
+        cardId={record.id}
+        card={card}
+        state={originalState}
+        avatar={avatar}
+        onAvatarChange={setAvatar}
+      />
       <CropDialog
         source={cropSource}
         onCancel={() => setCropSource(null)}
         onDone={async (png) => {
           setCropSource(null)
           setAvatar(png)
-          await db.cards.update(record.id, { avatar: png, updatedAt: Date.now() })
+          await setCardAvatar(record.id, png)
           toast.success('头像已更换')
         }}
       />

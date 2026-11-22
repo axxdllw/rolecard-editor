@@ -50,6 +50,23 @@ export interface CardRecord {
   updatedAt: number
 }
 
+/**
+ * 卡的原件：导入时的卡片数据，用来对比改动和还原。每张卡最多一份，以卡的 id 为主键。
+ * 头像按需复制：换头像或移除头像之前才把原来的头像存进来（avatarSaved 为 true），
+ * 没换过时原件头像就是卡当前的头像，不重复占空间。
+ */
+export interface CardOriginalRecord {
+  cardId: string
+  card: CharacterCardV3
+  /** import：导入时自动保存；baseline：用户把当时的版本记为原件（功能上线前导入的卡、新建的卡） */
+  kind: 'import' | 'baseline'
+  avatarSaved: boolean
+  /** avatarSaved 为 true 时是原来的头像（null 表示原来没有头像） */
+  avatar: Blob | null
+  fileName: string
+  createdAt: number
+}
+
 export interface LorebookRecord {
   id: string
   name: string
@@ -63,9 +80,14 @@ export interface LorebookRecord {
 export const db = new Dexie('role-card-editor') as Dexie & {
   cards: EntityTable<CardRecord, 'id'>
   lorebooks: EntityTable<LorebookRecord, 'id'>
+  originals: EntityTable<CardOriginalRecord, 'cardId'>
 }
 
 db.version(1).stores({
   cards: 'id, name, createdAt, updatedAt, *localTags',
   lorebooks: 'id, name, updatedAt',
+})
+
+db.version(2).stores({
+  originals: 'cardId',
 })

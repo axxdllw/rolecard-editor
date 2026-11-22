@@ -1,13 +1,14 @@
 /**
- * 整库备份与恢复：zip 包，manifest.json 存卡片和世界书，头像单独存成 PNG。
+ * 整库备份与恢复：zip 包，manifest.json 存卡片、世界书和卡的原件，头像单独存成 PNG。
  */
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate'
-import { db, type CardRecord, type LorebookRecord } from '@/db/db'
-import { blobToBytes } from '@/lib/image'
+import { db, type CardOriginalRecord, type CardRecord, type LorebookRecord } from '@/db/db'
+import { blobToBytes, bytesToBlob } from '@/lib/image'
 import { avatarFromPng } from './cards'
 
 const APP_ID = 'role-card-editor'
-const BACKUP_VERSION = 1
+// 2：加入卡的原件（originals）；恢复时兼容 1
+const BACKUP_VERSION = 2
 
 interface BackupManifest {
   app: string
@@ -15,11 +16,13 @@ interface BackupManifest {
   exportedAt: string
   cards: Array<Omit<CardRecord, 'avatar'> & { avatarFile: string | null }>
   lorebooks: LorebookRecord[]
+  originals?: Array<Omit<CardOriginalRecord, 'avatar'> & { avatarFile: string | null }>
 }
 
 export async function exportBackup(): Promise<{ bytes: Uint8Array; cards: number; lorebooks: number }> {
   const cards = await db.cards.toArray()
   const lorebooks = await db.lorebooks.toArray()
+  const originals = await db.originals.toArray()
   const files: Record<string, Uint8Array | [Uint8Array, { level: 0 }]> = {}
 
   const manifestCards: BackupManifest['cards'] = []
@@ -32,12 +35,23 @@ export async function exportBackup(): Promise<{ bytes: Uint8Array; cards: number
     manifestCards.push({ ...rest, avatarFile })
   }
 
+  const manifestOriginals: NonNullable<BackupManifest['originals']> = []
+  for (const { avatar, ...rest } of originals) {
+    let avatarFile: string | null = null
+    if (rest.avatarSaved && avatar) {
+      avatarFile = `originals/${rest.cardId}.png`
+      files[avatarFile] = [await blobToBytes(avatar), { level: 0 }]
+    }
+    manifestOriginals.push({ ...rest, avatarFile })
+  }
+
   const manifest: BackupManifest = {
     app: APP_ID,
     version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
     cards: manifestCards,
     lorebooks,
+    originals: manifestOriginals,
   }
   files['manifest.json'] = strToU8(JSON.stringify(manifest))
   return { bytes: zipSync(files), cards: cards.length, lorebooks: lorebooks.length }
@@ -61,13 +75,20 @@ export async function restoreBackup(bytes: Uint8Array, mode: RestoreMode): Promi
     avatar: avatarFile && files[avatarFile] ? avatarFromPng(files[avatarFile]) : null,
   }))
 
-  await db.transaction('rw', db.cards, db.lorebooks, async () => {
+  const originals: CardOriginalRecord[] = (manifest.originals ?? []).map(({ avatarFile, ...rest }) => ({
+    ...rest,
+    avatar: avatarFile && files[avatarFile] ? bytesToBlob(files[avatarFile]) : null,
+  }))
+
+  await db.transaction('rw', db.cards, db.lorebooks, db.originals, async () => {
     if (mode === 'replace') {
       await db.cards.clear()
       await db.lorebooks.clear()
+      await db.originals.clear()
     }
     await db.cards.bulkPut(cards)
     await db.lorebooks.bulkPut(manifest.lorebooks)
+    await db.originals.bulkPut(originals)
   })
   return { cards: cards.length, lorebooks: manifest.lorebooks.length }
 }

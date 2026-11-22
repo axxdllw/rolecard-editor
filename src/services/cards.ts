@@ -13,6 +13,7 @@ import { db, type CardRecord, type CardStats } from '@/db/db'
 import { fileKind, safeFileName } from '@/lib/files'
 import { blobToBytes, bytesToBlob, defaultAvatarPng, toPngBlob } from '@/lib/image'
 import { countTokens } from '@/lib/tokens'
+import { copyOriginal, deleteOriginals, saveImportOriginal } from './originals'
 
 export function computeStats(card: CharacterCardV3): CardStats {
   const joined = constantPromptTexts(card).join('\n')
@@ -125,28 +126,32 @@ export async function findCardsByName(name: string): Promise<CardRecord[]> {
   return db.cards.where('name').equals(name).toArray()
 }
 
-/** 保存导入的卡；replaceId 有值时覆盖那张卡（保留它的本地标签和备注） */
+/** 保存导入的卡；replaceId 有值时覆盖那张卡（保留它的本地标签和备注）。同时把导入的版本存为原件 */
 export async function addImportedCard(imported: ImportedCard, replaceId?: string): Promise<string> {
   const { parsed, avatar, fileName, sourceFormat } = imported
-  if (replaceId) {
-    const existing = await db.cards.get(replaceId)
-    if (existing) {
-      await db.cards.put({
-        ...existing,
-        card: parsed.card,
-        avatar: avatar ?? existing.avatar,
-        name: parsed.card.data.name,
-        sourceFormat,
-        fileName,
-        stats: computeStats(parsed.card),
-        updatedAt: Date.now(),
-      })
-      return replaceId
+  return db.transaction('rw', db.cards, db.originals, async () => {
+    if (replaceId) {
+      const existing = await db.cards.get(replaceId)
+      if (existing) {
+        await db.cards.put({
+          ...existing,
+          card: parsed.card,
+          avatar: avatar ?? existing.avatar,
+          name: parsed.card.data.name,
+          sourceFormat,
+          fileName,
+          stats: computeStats(parsed.card),
+          updatedAt: Date.now(),
+        })
+        await saveImportOriginal(replaceId, parsed.card, fileName)
+        return replaceId
+      }
     }
-  }
-  const record = newRecord(parsed.card, avatar, { sourceFormat, fileName })
-  await db.cards.add(record)
-  return record.id
+    const record = newRecord(parsed.card, avatar, { sourceFormat, fileName })
+    await db.cards.add(record)
+    await saveImportOriginal(record.id, parsed.card, fileName)
+    return record.id
+  })
 }
 
 export async function createCard(
@@ -171,7 +176,10 @@ export async function duplicateCard(id: string): Promise<string | null> {
     note: `复制自「${source.name}」${source.note ? `；${source.note}` : ''}`,
     sourceUrl: source.sourceUrl,
   })
-  await db.cards.add(record)
+  await db.transaction('rw', db.cards, db.originals, async () => {
+    await db.cards.add(record)
+    await copyOriginal(id, record.id)
+  })
   return record.id
 }
 
@@ -190,7 +198,10 @@ export async function updateCardMeta(id: string, meta: Partial<Pick<CardRecord, 
 }
 
 export async function deleteCards(ids: string[]) {
-  await db.cards.bulkDelete(ids)
+  await db.transaction('rw', db.cards, db.originals, async () => {
+    await db.cards.bulkDelete(ids)
+    await deleteOriginals(ids)
+  })
 }
 
 export function cardFileBase(record: Pick<CardRecord, 'card'>): string {
