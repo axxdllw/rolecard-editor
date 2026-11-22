@@ -61,7 +61,7 @@ describe('Anthropic 格式适配器', () => {
       messages: [{ role: 'user', content: '问候' }],
       onText: (d, full) => deltas.push(`${d}|${full}`),
     })
-    expect(result).toEqual({ text: '你好', finishReason: 'stop' })
+    expect(result).toEqual({ text: '你好', finishReason: 'stop', rawFinishReason: 'end_turn' })
     expect(deltas).toEqual(['你|你', '好|你好'])
     const [call] = calls
     expect(call.url).toMatch(/^https:\/\/api\.anthropic\.com\/v1\/messages/)
@@ -93,6 +93,7 @@ describe('Anthropic 格式适配器', () => {
     await expect(anthropicProvider.stream(profile({ baseUrl: 'https://relay.example.com' }), { messages: [{ role: 'user', content: 'x' }] })).resolves.toEqual({
       text: '半句',
       finishReason: 'length',
+      rawFinishReason: 'max_tokens',
     })
   })
 

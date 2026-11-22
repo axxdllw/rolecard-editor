@@ -23,6 +23,8 @@ interface OpenAiStreamChoice {
     reasoning_content?: unknown
   }
   finish_reason?: unknown
+  /** 部分中转站（如 CLIProxyAPI）附带的上游原始结束原因 */
+  native_finish_reason?: unknown
 }
 
 interface OpenAiStreamChunk {
@@ -39,10 +41,14 @@ function openaiBaseUrl(profile: AiProfile): string {
   return resolveBaseUrl(profile).replace(/\/chat\/completions$/, '')
 }
 
+/** 中转站转发 Gemini 等上游时，可能直接给出上游的拦截原因（大小写不定） */
+const REFUSAL_REASONS = new Set(['content_filter', 'safety', 'prohibited_content', 'blocklist', 'spii', 'recitation'])
+
 function mapFinishReason(reason: string): AiFinishReason {
-  if (reason === 'stop') return 'stop'
-  if (reason === 'length') return 'length'
-  if (reason === 'content_filter') return 'refusal'
+  const r = reason.toLowerCase()
+  if (r === 'stop') return 'stop'
+  if (r === 'length' || r === 'max_tokens') return 'length'
+  if (REFUSAL_REASONS.has(r)) return 'refusal'
   return 'other'
 }
 
@@ -76,6 +82,7 @@ export const openaiProvider: AiProvider = {
 
     let full = ''
     let finishReason: AiFinishReason | undefined
+    let rawFinishReason: string | undefined
 
     try {
       const response = await fetch(url, {
@@ -132,10 +139,18 @@ export const openaiProvider: AiProvider = {
 
         if (typeof choice.finish_reason === 'string' && choice.finish_reason) {
           finishReason = mapFinishReason(choice.finish_reason)
+          rawFinishReason = choice.finish_reason
+          // 中转站可能把上游的拦截、截断统一报成 stop，以上游原因为准
+          const native = choice.native_finish_reason
+          if (typeof native === 'string' && native) {
+            rawFinishReason = native
+            const mapped = mapFinishReason(native)
+            if (mapped === 'length' || mapped === 'refusal') finishReason = mapped
+          }
         }
       }
 
-      return { text: full, finishReason: finishReason ?? 'stop' }
+      return { text: full, finishReason: finishReason ?? 'stop', rawFinishReason }
     } catch (error) {
       throw networkError(error)
     }

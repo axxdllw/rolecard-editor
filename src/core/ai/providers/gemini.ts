@@ -96,6 +96,7 @@ export const geminiProvider: AiProvider = {
 
     let full = ''
     let finishReason: AiFinishReason | undefined
+    let rawFinishReason: string | undefined
 
     try {
       const response = await fetch(url, {
@@ -156,15 +157,17 @@ export const geminiProvider: AiProvider = {
 
         if (typeof candidate?.finishReason === 'string' && candidate.finishReason) {
           finishReason = mapFinishReason(candidate.finishReason)
+          rawFinishReason = candidate.finishReason
         }
 
         const blockReason = chunk.promptFeedback?.blockReason
         if (typeof blockReason === 'string' && blockReason) {
           finishReason = 'refusal'
+          rawFinishReason = blockReason
         }
       }
 
-      return { text: full, finishReason: finishReason ?? 'stop' }
+      return { text: full, finishReason: finishReason ?? 'stop', rawFinishReason }
     } catch (error) {
       throw networkError(error)
     }

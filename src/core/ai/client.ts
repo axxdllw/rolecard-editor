@@ -18,7 +18,9 @@ export async function streamChat(profile: AiProfile, request: AiRequest): Promis
   checkProfile(profile)
   const provider = await loaders[profile.kind]()
   const result = await provider.stream(profile, request)
-  if (result.finishReason === 'refusal') throw new AiError('refusal', '模型拒绝了这个请求，可以换个说法或换个模型再试')
+  if (result.finishReason === 'refusal') {
+    throw new AiError('refusal', '模型拒绝了这个请求，可以换个说法或换个模型再试', { finishReason: result.rawFinishReason })
+  }
   if (!result.text.trim()) throw new AiError('empty', '模型没有返回内容')
   return result
 }

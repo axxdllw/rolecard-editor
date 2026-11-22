@@ -96,7 +96,7 @@ async function consumeEvents(events: AsyncIterable<StreamEvent>, request: AiRequ
       stopReason = event.delta.stop_reason
     }
   }
-  return { text: full, finishReason: mapStopReason(stopReason ?? 'end_turn') }
+  return { text: full, finishReason: mapStopReason(stopReason ?? 'end_turn'), rawFinishReason: stopReason ?? undefined }
 }
 
 async function toAiError(error: unknown): Promise<AiError> {

@@ -169,7 +169,7 @@ describe('openaiProvider', () => {
       },
     })
 
-    expect(result).toEqual({ text: '你好，世界', finishReason: 'stop' })
+    expect(result).toEqual({ text: '你好，世界', finishReason: 'stop', rawFinishReason: 'stop' })
     expect(received).toEqual([
       { delta: '你好', full: '你好' },
       { delta: '，世界', full: '你好，世界' },
@@ -183,7 +183,7 @@ describe('openaiProvider', () => {
     const lengthResult = await openaiProvider.stream(makeOpenAiProfile(), {
       messages: [{ role: 'user', content: '写长一点' }],
     })
-    expect(lengthResult).toEqual({ text: '截断了', finishReason: 'length' })
+    expect(lengthResult).toEqual({ text: '截断了', finishReason: 'length', rawFinishReason: 'length' })
 
     stubFetch(() =>
       makeSseResponse(['data: {"choices":[{"delta":{"content":""},"finish_reason":"content_filter"}]}\n\n']),
@@ -191,13 +191,35 @@ describe('openaiProvider', () => {
     const filterResult = await openaiProvider.stream(makeOpenAiProfile(), {
       messages: [{ role: 'user', content: '测试过滤' }],
     })
-    expect(filterResult).toEqual({ text: '', finishReason: 'refusal' })
+    expect(filterResult).toEqual({ text: '', finishReason: 'refusal', rawFinishReason: 'content_filter' })
 
     stubFetch(() => makeSseResponse(['data: {"choices":[{"delta":{"content":"完毕"}}]}\n\n']))
     const defaultResult = await openaiProvider.stream(makeOpenAiProfile(), {
       messages: [{ role: 'user', content: '无原因' }],
     })
     expect(defaultResult).toEqual({ text: '完毕', finishReason: 'stop' })
+  })
+
+  it('中转站的 max_tokens、上游拦截原因和 native_finish_reason', async () => {
+    stubFetch(() =>
+      makeSseResponse(['data: {"choices":[{"delta":{"content":"写到一半"},"finish_reason":"max_tokens"}]}\n\n']),
+    )
+    const maxResult = await openaiProvider.stream(makeOpenAiProfile(), { messages: [{ role: 'user', content: 'x' }] })
+    expect(maxResult).toEqual({ text: '写到一半', finishReason: 'length', rawFinishReason: 'max_tokens' })
+
+    stubFetch(() =>
+      makeSseResponse([
+        'data: {"choices":[{"delta":{"content":"半句"},"finish_reason":"stop","native_finish_reason":"RECITATION"}]}\n\n',
+      ]),
+    )
+    const nativeResult = await openaiProvider.stream(makeOpenAiProfile(), { messages: [{ role: 'user', content: 'x' }] })
+    expect(nativeResult).toEqual({ text: '半句', finishReason: 'refusal', rawFinishReason: 'RECITATION' })
+
+    stubFetch(() =>
+      makeSseResponse(['data: {"choices":[{"delta":{"content":"好"},"finish_reason":"stop","native_finish_reason":"stop"}]}\n\n']),
+    )
+    const normal = await openaiProvider.stream(makeOpenAiProfile(), { messages: [{ role: 'user', content: 'x' }] })
+    expect(normal).toEqual({ text: '好', finishReason: 'stop', rawFinishReason: 'stop' })
   })
 
   it('流内返回 error 对象时抛出 server 类型 AiError', async () => {
@@ -368,7 +390,7 @@ describe('geminiProvider', () => {
       },
     })
 
-    expect(result).toEqual({ text: '第一段第二段', finishReason: 'stop' })
+    expect(result).toEqual({ text: '第一段第二段', finishReason: 'stop', rawFinishReason: 'STOP' })
     expect(received).toEqual([
       { delta: '第一段', full: '第一段' },
       { delta: '第二段', full: '第一段第二段' },
@@ -384,13 +406,13 @@ describe('geminiProvider', () => {
     const safetyResult = await geminiProvider.stream(makeGeminiProfile(), {
       messages: [{ role: 'user', content: '敏感内容' }],
     })
-    expect(safetyResult).toEqual({ text: '半句', finishReason: 'refusal' })
+    expect(safetyResult).toEqual({ text: '半句', finishReason: 'refusal', rawFinishReason: 'SAFETY' })
 
     stubFetch(() => makeSseResponse(['data: {"promptFeedback":{"blockReason":"PROHIBITED_CONTENT"}}\n\n']))
     const blockResult = await geminiProvider.stream(makeGeminiProfile(), {
       messages: [{ role: 'user', content: '被拦截' }],
     })
-    expect(blockResult).toEqual({ text: '', finishReason: 'refusal' })
+    expect(blockResult).toEqual({ text: '', finishReason: 'refusal', rawFinishReason: 'PROHIBITED_CONTENT' })
   })
 
   it('listModels 过滤支持 generateContent 的模型、去前缀并翻页（最多 5 页）', async () => {

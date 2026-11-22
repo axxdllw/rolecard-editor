@@ -62,6 +62,8 @@ export type AiFinishReason = 'stop' | 'length' | 'refusal' | 'other'
 export interface AiResult {
   text: string
   finishReason: AiFinishReason
+  /** 接口返回的结束原因原文（如 stop、max_tokens、SAFETY、RECITATION），排查失败原因用；接口没给时没有 */
+  rawFinishReason?: string
 }
 
 export type AiErrorKind =
@@ -82,13 +84,20 @@ export class AiError extends Error {
   readonly status?: number
   /** 服务端返回的原始错误信息（截断），方便排查 */
   readonly detail?: string
+  /** 接口返回的结束原因原文（模型拒绝时带上，用来区分审核拦截、RECITATION 等） */
+  readonly finishReason?: string
 
-  constructor(kind: AiErrorKind, message: string, options: { status?: number; detail?: string } = {}) {
+  constructor(
+    kind: AiErrorKind,
+    message: string,
+    options: { status?: number; detail?: string; finishReason?: string } = {},
+  ) {
     super(message)
     this.name = 'AiError'
     this.kind = kind
     this.status = options.status
     this.detail = options.detail
+    this.finishReason = options.finishReason
   }
 }
 
