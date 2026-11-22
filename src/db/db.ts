@@ -76,6 +76,20 @@ export interface CardOriginalRecord {
   createdAt: number
 }
 
+/**
+ * 卡的版本快照：手动存的，或者大改之前自动存的。只存卡片数据，不存头像。
+ */
+export interface CardSnapshotRecord {
+  id: string
+  cardId: string
+  card: CharacterCardV3
+  /** manual：手动存的；auto：整卡还原、AI 全部应用、批量替换之前自动存的 */
+  kind: 'manual' | 'auto'
+  /** 手动存时用户起的名字（可以为空）；自动存时是原因，如“整卡还原前” */
+  label: string
+  createdAt: number
+}
+
 export interface LorebookRecord {
   id: string
   name: string
@@ -108,6 +122,7 @@ export const db = new Dexie('role-card-editor') as Dexie & {
   lorebooks: EntityTable<LorebookRecord, 'id'>
   originals: EntityTable<CardOriginalRecord, 'cardId'>
   assistantChats: EntityTable<AssistantChatRecord, 'cardId'>
+  snapshots: EntityTable<CardSnapshotRecord, 'id'>
 }
 
 db.version(1).stores({
@@ -121,4 +136,8 @@ db.version(2).stores({
 
 db.version(3).stores({
   assistantChats: 'cardId',
+})
+
+db.version(4).stores({
+  snapshots: 'id, cardId',
 })

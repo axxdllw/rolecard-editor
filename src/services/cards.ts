@@ -17,6 +17,7 @@ import { blobToBytes, bytesToBlob, defaultAvatarPng, toPngBlob } from '@/lib/ima
 import { countTokens } from '@/lib/tokens'
 import { deleteAssistantChats } from './assistantChats'
 import { copyOriginal, deleteOriginals, saveImportOriginal } from './originals'
+import { deleteSnapshotsOfCards } from './snapshots'
 
 export function computeStats(card: CharacterCardV3): CardStats {
   const joined = constantPromptTexts(card).join('\n')
@@ -217,10 +218,11 @@ export async function updateCardMeta(id: string, meta: Partial<Pick<CardRecord, 
 }
 
 export async function deleteCards(ids: string[]) {
-  await db.transaction('rw', db.cards, db.originals, db.assistantChats, async () => {
+  await db.transaction('rw', [db.cards, db.originals, db.assistantChats, db.snapshots], async () => {
     await db.cards.bulkDelete(ids)
     await deleteOriginals(ids)
     await deleteAssistantChats(ids)
+    await deleteSnapshotsOfCards(ids)
   })
 }
 

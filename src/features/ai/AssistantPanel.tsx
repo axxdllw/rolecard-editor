@@ -36,6 +36,7 @@ import { entryTitle } from '@/core/lorebook/entry'
 import { uuid } from '@/core/util/id'
 import type { AssistantChatMessage } from '@/db/db'
 import { updateCard, useCardDoc, type CardDoc } from '@/features/editor/cardDoc'
+import { snapshotBeforeChange } from '@/features/originals/autoSnapshot'
 import { useFocusEntry } from '@/features/editor/focusEntry'
 import { useActiveAiProfile } from '@/lib/aiSettings'
 import { cn } from '@/lib/utils'
@@ -473,6 +474,7 @@ export default function AssistantPanel({ cardId, onClose, className }: Assistant
 
       const appliedKeys: string[] = []
       let failedCount = 0
+      snapshotBeforeChange('AI 全部应用之前')
       updateCard(
         (d) => {
           for (const item of items) {

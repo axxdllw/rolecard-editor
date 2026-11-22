@@ -217,7 +217,7 @@ function Editor({ record }: { record: CardRecord }) {
             <SaveIndicator status={status} />
             {record.sourceFormat === 'copy' && <Badge variant="secondary">副本</Badge>}
             <DependencySummary report={depReport} onOpen={() => setDepsOpen(true)} />
-            <OriginalSummary state={originalState} onOpen={() => setOriginalOpen(true)} />
+            <OriginalSummary cardId={record.id} state={originalState} onOpen={() => setOriginalOpen(true)} />
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1">

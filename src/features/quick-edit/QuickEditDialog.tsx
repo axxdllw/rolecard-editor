@@ -18,6 +18,7 @@ import {
   type TextSlot,
 } from '@/core/search/search'
 import { updateCard, useCardDoc } from '@/features/editor/cardDoc'
+import { snapshotBeforeChange } from '@/features/originals/autoSnapshot'
 import { cn } from '@/lib/utils'
 
 const GROUPS: TextSlot['group'][] = ['角色字段', '开场白', '世界书', '正则', '扩展']
@@ -74,6 +75,7 @@ function useApply(onDone: () => void) {
   return (planned: PlannedHit[], selected: Set<string>, extra?: { newName?: string }, label = '批量替换') => {
     const chosen = planned.filter((p) => selected.has(p.hit.id))
     let count = 0
+    snapshotBeforeChange(`${label}之前`)
     updateCard(
       (d) => {
         count = applyReplacements(d.card, chosen.map((p) => ({ hit: p.hit, text: p.replacement })))
