@@ -15,6 +15,7 @@
  */
 import type Anthropic from '@anthropic-ai/sdk'
 import { httpError, isAbortError, networkError } from '../errors'
+import { aiFetch } from '../http'
 import {
   AiError,
   DEFAULT_ANTHROPIC_MAX_TOKENS,
@@ -66,6 +67,7 @@ async function createClient(profile: AiProfile): Promise<Anthropic> {
     apiKey: key,
     baseURL: anthropicBaseUrl(profile),
     dangerouslyAllowBrowser: true,
+    fetch: aiFetch,
     maxRetries: 1,
     ...(isOfficial(profile) ? {} : { defaultHeaders: relayHeaders }),
   })

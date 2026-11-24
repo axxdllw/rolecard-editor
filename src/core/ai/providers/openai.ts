@@ -6,6 +6,7 @@
  * - 思考模型返回的 delta.reasoning_content 不会混入正文结果。
  */
 import { extractErrorMessage, httpError, networkError } from '../errors'
+import { aiFetch } from '../http'
 import { readSse } from '../sse'
 import {
   AiError,
@@ -85,7 +86,7 @@ export const openaiProvider: AiProvider = {
     let rawFinishReason: string | undefined
 
     try {
-      const response = await fetch(url, {
+      const response = await aiFetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -159,7 +160,7 @@ export const openaiProvider: AiProvider = {
   async listModels(profile: AiProfile, signal?: AbortSignal): Promise<string[]> {
     const url = `${openaiBaseUrl(profile)}/models`
     try {
-      const response = await fetch(url, {
+      const response = await aiFetch(url, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${profile.apiKey.trim()}`,

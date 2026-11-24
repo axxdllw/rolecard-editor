@@ -6,6 +6,7 @@
  * - 模型列表只保留支持 generateContent 的模型，并统一去掉 models/ 前缀。
  */
 import { extractErrorMessage, httpError, networkError } from '../errors'
+import { aiFetch } from '../http'
 import { readSse } from '../sse'
 import {
   AiError,
@@ -99,7 +100,7 @@ export const geminiProvider: AiProvider = {
     let rawFinishReason: string | undefined
 
     try {
-      const response = await fetch(url, {
+      const response = await aiFetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -184,7 +185,7 @@ export const geminiProvider: AiProvider = {
         const query = pageToken
           ? `pageSize=1000&pageToken=${encodeURIComponent(pageToken)}`
           : 'pageSize=1000'
-        const response = await fetch(`${base}/v1beta/models?${query}`, {
+        const response = await aiFetch(`${base}/v1beta/models?${query}`, {
           method: 'GET',
           headers,
           signal,

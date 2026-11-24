@@ -1,6 +1,7 @@
 /**
  * 文件选择与下载。
  */
+import { toast } from 'sonner'
 
 export function pickFiles(accept: string, multiple = false): Promise<File[]> {
   return new Promise((resolve) => {
@@ -24,6 +25,13 @@ export function safeFileName(name: string, fallback = '未命名'): string {
 export function downloadBlob(data: Blob | Uint8Array | string, fileName: string, type = 'application/octet-stream') {
   const blob =
     data instanceof Blob ? data : new Blob([typeof data === 'string' ? data : data.slice()], { type })
+  // 桌面版的 webview 不一定支持 <a download>，改为弹“另存为”后写盘
+  if (import.meta.env.TAURI_ENV_PLATFORM) {
+    void saveWithDialog(blob, fileName).catch((error: unknown) => {
+      toast.error(`保存失败：${error instanceof Error ? error.message : String(error)}`)
+    })
+    return
+  }
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -32,6 +40,19 @@ export function downloadBlob(data: Blob | Uint8Array | string, fileName: string,
   a.click()
   a.remove()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+/** 桌面版保存文件：用户取消时什么都不做 */
+async function saveWithDialog(blob: Blob, fileName: string) {
+  const [{ save }, { writeFile }] = await Promise.all([import('@tauri-apps/plugin-dialog'), import('@tauri-apps/plugin-fs')])
+  const ext = fileName.includes('.') ? fileName.slice(fileName.lastIndexOf('.') + 1) : ''
+  const path = await save({
+    defaultPath: fileName,
+    filters: ext ? [{ name: ext.toUpperCase(), extensions: [ext] }] : undefined,
+  })
+  if (!path) return
+  await writeFile(path, new Uint8Array(await blob.arrayBuffer()))
+  toast.success(`已保存到 ${path}`)
 }
 
 export type DroppedKind = 'png' | 'json' | 'charx' | 'image' | 'zip' | 'unknown'
