@@ -122,7 +122,7 @@ export function NewCardDialog({ open, onOpenChange }: { open: boolean; onOpenCha
                 id="new-card-name"
                 value={name}
                 autoFocus
-                placeholder={mode === 'ai' ? '可以不填，由 AI 起名' : '例如：弗洛洛'}
+                placeholder={mode === 'ai' ? '可以不填，由 AI 起名' : '例如：艾琳'}
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => mode === 'blank' && e.key === 'Enter' && !e.nativeEvent.isComposing && submit()}
               />

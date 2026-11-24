@@ -215,7 +215,7 @@ export function EntryDetail({ entry, entryKey, onEdit, onDelete, onDuplicate, ex
       {strategy !== 'constant' && (
         <>
           <div className="flex flex-col gap-1.5">
-            <FieldLabel label="关键词" hint="出现任意一个就触发。/…/ 形式是正则，例如 /弗洛洛|Phrolova/i" />
+            <FieldLabel label="关键词" hint="出现任意一个就触发。/…/ 形式是正则，例如 /艾琳|Irene/i" />
             <TagInput
               value={entry.keys ?? EMPTY}
               onChange={(v) => edit('修改关键词', (x) => void (x.keys = v))}

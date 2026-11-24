@@ -214,7 +214,7 @@ export interface RenameHit {
 
 /**
  * 按规则扫描。长的叫法先匹配，已被占用的位置跳过，
- * 例如“弗洛洛姐姐”整体替换，不会再被“弗洛洛”拆开。结果按出现位置排序。
+ * 例如“艾琳姐姐”整体替换，不会再被“艾琳”拆开。结果按出现位置排序。
  */
 export function planRename(slots: TextSlot[], rules: RenameRule[]): RenameHit[] {
   const taken = new Map<number, Array<[number, number]>>()
