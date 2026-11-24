@@ -3,7 +3,7 @@
   "productName": "角色卡编辑器",
   "mainBinaryName": "rolecard-editor",
   "version": "../package.json",
-  "identifier": "app.rolecard.editor",
+  "identifier": "io.github.axxdllw.rolecard-editor",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:5174",
