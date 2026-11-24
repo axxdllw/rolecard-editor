@@ -4,10 +4,9 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="referrer" content="no-referrer" />
-<meta name="robots" content="noindex, nofollow" />
-<meta name="description" content="给 SillyTavern 玩家用的角色卡编辑器：所有字段一页看完，世界书好管理，导入导出不丢数据。纯网页，数据只存在你自己的浏览器里。" />
+<meta name="description" content="给 SillyTavern 玩家用的角色卡编辑器：所有字段一页看完，世界书好管理，导入导出不丢数据。支持网页版与桌面版，数据只留在你自己的设备里。" />
 <meta name="theme-color" content="#f0e9db" />
-<title>角色卡编辑器 · 试用介绍</title>
+<title>角色卡编辑器 · SillyTavern 角色卡与世界书工具</title>
 <link rel="icon" type="image/svg+xml" href="./app/favicon.svg" />
 <style>
 :root {
@@ -114,6 +113,7 @@ a { color: inherit; }
 .btn-line { color: var(--ink); background: transparent; }
 .btn-line:hover { background: rgba(28, 26, 23, 0.06); }
 .btn-sm { padding: 9px 16px; font-size: 13.5px; box-shadow: 3px 3px 0 var(--red); }
+.btn-sm-line { padding: 9px 16px; font-size: 13.5px; }
 
 /* ---------- 首屏 ---------- */
 .hero { padding: 72px 0 96px; position: relative; }
@@ -207,6 +207,7 @@ section { position: relative; }
 .cat .idx { --head: 3.4rem; transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.35s ease; }
 .cat .idx:hover { transform: translateY(-4px) rotate(var(--tilt, -0.6deg)); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 30px 50px -26px rgba(48, 34, 14, 0.55); }
 .cat .idx:nth-child(even) { --tilt: 0.6deg; }
+.cat .s12:hover { transform: translateY(-3px); }
 .cat .idx-head h3 { font: 700 19px/1 var(--serif); margin: 0; letter-spacing: 0.04em; }
 .cat .no { font: 600 12px/1 var(--mono); color: var(--red); letter-spacing: 0.06em; }
 .cat .idx-body { font-size: 14.5px; color: var(--ink-soft); }
@@ -214,6 +215,102 @@ section { position: relative; }
 .chips span { font: 500 11.5px/1.9 var(--mono); padding: 0 8px; border: 1px solid var(--line); border-radius: 3px; background: rgba(240, 233, 219, 0.7); color: var(--ink-soft); }
 .s5 { grid-column: span 5; } .s7 { grid-column: span 7; } .s4 { grid-column: span 4; } .s12 { grid-column: span 12; }
 .wide-body { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 32px; }
+
+/* 界面实拍画廊 */
+.gallery { margin-bottom: 34px; }
+.gal-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: -1px; position: relative; z-index: 2; }
+.gal-tab {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 15px 10px;
+  font: 600 13.5px/1 var(--sans);
+  color: var(--ink-soft);
+  background: rgba(251, 247, 238, 0.55);
+  border: 1px solid var(--line);
+  border-bottom-color: transparent;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.gal-tab:hover { background: rgba(251, 247, 238, 0.88); color: var(--ink); }
+.gal-tab.is-on {
+  background: var(--card);
+  color: var(--ink);
+  border-top: 2px solid var(--red);
+  padding-bottom: 11px;
+  margin-bottom: -1px;
+}
+.gal-no { font: 600 11.5px/1 var(--mono); color: var(--red); letter-spacing: 0.04em; }
+.gal-stage {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 0 4px 4px 4px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 22px 44px -26px rgba(48, 34, 14, 0.45), 0 2px 6px -2px rgba(48, 34, 14, 0.1);
+  padding: 16px 20px 18px;
+}
+.gal-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding-bottom: 12px; margin-bottom: 14px;
+  border-bottom: 1.5px solid rgba(178, 48, 28, 0.35);
+}
+.gal-meta { display: flex; align-items: baseline; gap: 12px; }
+.gal-meta b { font: 600 12px/1 var(--mono); letter-spacing: 0.12em; color: var(--red); }
+.gal-meta span { font: 700 16px/1 var(--serif); color: var(--ink); letter-spacing: 0.04em; }
+.gal-ctrl { display: flex; gap: 6px; }
+.gal-nav {
+  width: 30px; height: 30px;
+  display: grid; place-items: center;
+  background: transparent; color: var(--ink-soft);
+  border: 1px solid var(--line); border-radius: 3px;
+  font: 600 14px/1 var(--mono); cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+.gal-nav:hover { background: rgba(28, 26, 23, 0.06); color: var(--ink); border-color: rgba(28, 26, 23, 0.3); }
+.shot-pane { margin: 0; }
+.shot-pane + .shot-pane { margin-top: 24px; padding-top: 24px; border-top: 1px dashed var(--line); }
+.js .shot-pane { display: none; margin-top: 0; padding-top: 0; border-top: 0; }
+.js .shot-pane.is-on { display: block; animation: shot-fade 0.26s ease; }
+@keyframes shot-fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+html:not(.js) .gal-bar, html:not(.js) .gal-head { display: none; }
+.shot-link {
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--paper-deep);
+  box-shadow: 0 10px 26px -18px rgba(48, 34, 14, 0.45);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.shot-link:hover { border-color: rgba(178, 48, 28, 0.45); box-shadow: 0 16px 32px -18px rgba(48, 34, 14, 0.55); }
+.shot-link img { display: block; width: 100%; height: auto; }
+.shot-cap {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  margin-top: 12px; font-size: 14px; line-height: 1.6; color: var(--ink-soft);
+}
+.shot-raw {
+  font: 500 12px/1 var(--mono); color: var(--red);
+  text-decoration: none; white-space: nowrap;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s ease;
+}
+.shot-raw:hover { border-bottom-color: currentColor; }
+
+/* 随手可用：手机竖屏实拍 */
+.pair-shots {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px dashed var(--line);
+  background: var(--card);
+  display: grid;
+  grid-template-columns: minmax(0, 280px);
+  gap: 20px;
+  align-items: end;
+  line-height: 1.5;
+}
+.mini-shot { margin: 0; }
+.mini-shot figcaption {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  margin-top: 8px; font-size: 13px; color: var(--muted);
+}
 
 /* ---------- 演示：改名向导 ---------- */
 .night {
@@ -293,8 +390,13 @@ section { position: relative; }
 .step h3 { font: 700 21px/1.3 var(--serif); margin: 0 0 10px; }
 .step p { margin: 0; color: var(--ink-soft); font-size: 14.5px; }
 kbd { font: 600 12px/1 var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 3px 6px; background: var(--card); }
-.ai-tip { margin-top: 30px; display: flex; gap: 16px; align-items: flex-start; padding: 20px 22px; background: rgba(251, 247, 238, 0.6); border: 1px dashed rgba(28, 26, 23, 0.25); border-radius: 4px; font-size: 14.5px; color: var(--ink-soft); }
-.ai-tip strong { font: 700 14.5px/1.75 var(--sans); color: var(--red); white-space: nowrap; letter-spacing: 0.04em; }
+.ai-tip { margin-top: 16px; display: flex; gap: 16px; align-items: center; padding: 20px 22px; background: rgba(251, 247, 238, 0.6); border: 1px dashed rgba(28, 26, 23, 0.25); border-radius: 4px; font-size: 14.5px; color: var(--ink-soft); }
+.steps + .ai-tip { margin-top: 30px; }
+.ai-tip strong { font: 700 14.5px/1.75 var(--sans); color: var(--red); white-space: nowrap; letter-spacing: 0.04em; align-self: flex-start; }
+.ai-tip span { flex: 1; }
+.desk-tip .btn { flex-shrink: 0; }
+.warn a { color: var(--red); text-decoration: none; border-bottom: 1px solid rgba(178, 48, 28, 0.4); }
+.warn a:hover { border-bottom-color: var(--red); }
 
 /* ---------- 反馈 ---------- */
 .fb { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 48px; align-items: center; }
@@ -306,6 +408,8 @@ kbd { font: 600 12px/1 var(--mono); border: 1px solid var(--line); border-bottom
 
 footer { border-top: 1px solid var(--line); padding: 30px 0 48px; color: var(--muted); font-size: 13px; }
 footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
+.foot-link { text-decoration: none; border-bottom: 1px solid var(--line); transition: color 0.2s ease, border-color 0.2s ease; }
+.foot-link:hover { color: var(--red); border-bottom-color: var(--red); }
 
 /* ---------- 动效 ---------- */
 .js .rise { opacity: 0; transform: translateY(18px); }
@@ -322,6 +426,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: s
   .deck { height: 440px; margin-top: 8px; }
   .s5, .s7, .s4 { grid-column: span 6; }
   .wide-body { grid-template-columns: 1fr; }
+  .ai-tip { flex-wrap: wrap; }
   .sec-head { grid-template-columns: 1fr; gap: 18px; }
   .nav { display: none; }
   .top .btn { margin-left: auto; }
@@ -331,6 +436,13 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: s
   .wrap { width: calc(100% - 32px); }
   .sec { padding: 80px 0; }
   .s5, .s7, .s4 { grid-column: span 12; }
+  .gal-bar { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 1px; }
+  .gal-bar::-webkit-scrollbar { display: none; }
+  .gal-tab { flex: 0 0 auto; padding: 8px 12px 9px; font-size: 13px; }
+  .gal-stage { padding: 12px; border-radius: 0 0 4px 4px; }
+  .shot-cap { flex-direction: column; gap: 6px; font-size: 13.5px; }
+  .pair-shots { grid-template-columns: 1fr; gap: 18px; }
+  .ai-tip { flex-direction: column; align-items: flex-start; gap: 10px; }
   .steps { grid-template-columns: 1fr; }
   .step, .step + .step { padding: 28px 0; border-left: 0; }
   .step + .step { border-top: 1px solid var(--line); }
@@ -383,10 +495,11 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: s
       </p>
       <div class="cta rise" style="--i:3">
         <a class="btn btn-ink" href="./app/">打开编辑器 <span class="arr">→</span></a>
+        <a class="btn btn-line" href="https://github.com/axxdllw/rolecard-editor/releases" target="_blank" rel="noopener">下载桌面版 <span class="arr">↗</span></a>
         <a class="btn btn-line" href="#features">先看看能做什么</a>
       </div>
       <div class="facts rise" style="--i:4">
-        <span>不用注册</span><span>数据只在你的浏览器里</span><span>手机能用</span><span>V2 / V3 卡</span>
+        <span>不用注册</span><span>数据留在本地</span><span>手机能用</span><span>有桌面版</span><span>V2 / V3 卡</span>
       </div>
     </div>
 
@@ -453,6 +566,98 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: s
       </div>
     </div>
 
+    <div class="gallery rise" aria-label="界面实拍">
+      <div class="gal-bar" role="tablist" aria-label="功能界面切换">
+        <button type="button" class="gal-tab is-on" role="tab" aria-selected="true" aria-controls="shot-0" id="tab-0" data-shot="0"><span class="gal-no">01</span>角色编辑</button>
+        <button type="button" class="gal-tab" role="tab" aria-selected="false" aria-controls="shot-1" id="tab-1" data-shot="1"><span class="gal-no">02</span>卡库</button>
+        <button type="button" class="gal-tab" role="tab" aria-selected="false" aria-controls="shot-2" id="tab-2" data-shot="2"><span class="gal-no">03</span>世界书</button>
+        <button type="button" class="gal-tab" role="tab" aria-selected="false" aria-controls="shot-3" id="tab-3" data-shot="3"><span class="gal-no">04</span>触发模拟</button>
+        <button type="button" class="gal-tab" role="tab" aria-selected="false" aria-controls="shot-4" id="tab-4" data-shot="4"><span class="gal-no">05</span>版本对比</button>
+        <button type="button" class="gal-tab" role="tab" aria-selected="false" aria-controls="shot-5" id="tab-5" data-shot="5"><span class="gal-no">06</span>AI 助手</button>
+        <button type="button" class="gal-tab" role="tab" aria-selected="false" aria-controls="shot-6" id="tab-6" data-shot="6"><span class="gal-no">07</span>小说转卡</button>
+      </div>
+
+      <div class="gal-stage">
+        <div class="gal-head">
+          <span class="gal-meta"><b id="gal-idx">01 / 07</b><span id="gal-label">角色编辑</span></span>
+          <div class="gal-ctrl">
+            <button type="button" class="gal-nav" id="gal-prev" aria-label="上一张">←</button>
+            <button type="button" class="gal-nav" id="gal-next" aria-label="下一张">→</button>
+          </div>
+        </div>
+
+        <figure class="shot-pane is-on" id="shot-0" role="tabpanel" aria-labelledby="tab-0">
+          <a class="shot-link" href="./screenshots/editor.webp" target="_blank" rel="noopener" title="在新标签打开原图">
+            <img src="./screenshots/editor.webp" alt="角色编辑界面：所有字段一页展示，支持宏高亮、XML 标签折叠、开场白气泡预览和 token 估算" width="1440" height="900" loading="lazy" decoding="async" />
+          </a>
+          <figcaption class="shot-cap">
+            <span>所有字段一页看完：宏高亮、XML 折叠、开场白气泡预览与 token 估算。</span>
+            <a class="shot-raw" href="./screenshots/editor.webp" target="_blank" rel="noopener">新标签看原图 ↗</a>
+          </figcaption>
+        </figure>
+
+        <figure class="shot-pane" id="shot-1" role="tabpanel" aria-labelledby="tab-1">
+          <a class="shot-link" href="./screenshots/library.webp" target="_blank" rel="noopener" title="在新标签打开原图">
+            <img src="./screenshots/library.webp" alt="卡库管理界面：网格或列表浏览全部角色卡，支持搜索、排序、标签筛选与批量导出" width="1440" height="900" loading="lazy" decoding="async" />
+          </a>
+          <figcaption class="shot-cap">
+            <span>网格或列表看全部卡，按标签筛选、搜索和排序，支持多选批量导出。</span>
+            <a class="shot-raw" href="./screenshots/library.webp" target="_blank" rel="noopener">新标签看原图 ↗</a>
+          </figcaption>
+        </figure>
+
+        <figure class="shot-pane" id="shot-2" role="tabpanel" aria-labelledby="tab-2">
+          <a class="shot-link" href="./screenshots/worldbook.webp" target="_blank" rel="noopener" title="在新标签打开原图">
+            <img src="./screenshots/worldbook.webp" alt="世界书编辑界面：条目列表筛选与拖拽排序，右侧同屏编辑设置与内容" width="1440" height="900" loading="lazy" decoding="async" />
+          </a>
+          <figcaption class="shot-cap">
+            <span>条目列表可筛选和拖拽排序，设置与内容同屏编辑，带批量修改和自动检查。</span>
+            <a class="shot-raw" href="./screenshots/worldbook.webp" target="_blank" rel="noopener">新标签看原图 ↗</a>
+          </figcaption>
+        </figure>
+
+        <figure class="shot-pane" id="shot-3" role="tabpanel" aria-labelledby="tab-3">
+          <a class="shot-link" href="./screenshots/simulate.webp" target="_blank" rel="noopener" title="在新标签打开原图">
+            <img src="./screenshots/simulate.webp" alt="世界书触发模拟界面：按酒馆 1.16 规则推演每轮触发条目，展示命中关键词与递归来源" width="1440" height="900" loading="lazy" decoding="async" />
+          </a>
+          <figcaption class="shot-cap">
+            <span>写一段模拟对话，按酒馆 1.16 规则算出每轮触发哪些条目、为什么触发。</span>
+            <a class="shot-raw" href="./screenshots/simulate.webp" target="_blank" rel="noopener">新标签看原图 ↗</a>
+          </figcaption>
+        </figure>
+
+        <figure class="shot-pane" id="shot-4" role="tabpanel" aria-labelledby="tab-4">
+          <a class="shot-link" href="./screenshots/diff.webp" target="_blank" rel="noopener" title="在新标签打开原图">
+            <img src="./screenshots/diff.webp" alt="版本对比界面：并排比对任意两个版本或导入原件的差异，支持单处或整卡还原" width="1440" height="900" loading="lazy" decoding="async" />
+          </a>
+          <figcaption class="shot-cap">
+            <span>导入时自动留原件，随时存快照；任选两版对比差异，单处或整卡还原。</span>
+            <a class="shot-raw" href="./screenshots/diff.webp" target="_blank" rel="noopener">新标签看原图 ↗</a>
+          </figcaption>
+        </figure>
+
+        <figure class="shot-pane" id="shot-5" role="tabpanel" aria-labelledby="tab-5">
+          <a class="shot-link" href="./screenshots/assistant.webp" target="_blank" rel="noopener" title="在新标签打开原图">
+            <img src="./screenshots/assistant.webp" alt="AI 助手侧栏界面：结合当前角色卡内容对话、润色扩写，改动先对比再确认采用" width="1440" height="900" loading="lazy" decoding="async" />
+          </a>
+          <figcaption class="shot-cap">
+            <span>侧栏助手直接对着这张卡聊，字段润色、扩写或补世界书，先对比再决定用不用。</span>
+            <a class="shot-raw" href="./screenshots/assistant.webp" target="_blank" rel="noopener">新标签看原图 ↗</a>
+          </figcaption>
+        </figure>
+
+        <figure class="shot-pane" id="shot-6" role="tabpanel" aria-labelledby="tab-6">
+          <a class="shot-link" href="./screenshots/novel.webp" target="_blank" rel="noopener" title="在新标签打开原图">
+            <img src="./screenshots/novel.webp" alt="小说转卡界面：导入电子书选定章节与时间点，整理人物、地点和事件生成角色卡或世界卡" width="1440" height="900" loading="lazy" decoding="async" />
+          </a>
+          <figcaption class="shot-cap">
+            <span>导入 EPUB / TXT / DOCX，选定章节和截止时间点不剧透后文，整理成单角色卡或世界卡。</span>
+            <a class="shot-raw" href="./screenshots/novel.webp" target="_blank" rel="noopener">新标签看原图 ↗</a>
+          </figcaption>
+        </figure>
+      </div>
+    </div>
+
     <div class="cat">
       <article class="idx s5 rise">
         <div class="idx-head"><span class="no">No.01</span><h3>卡库与编辑</h3></div>
@@ -515,10 +720,20 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: s
 
       <article class="idx s12 rise">
         <div class="idx-head"><span class="no">No.08</span><h3>随手可用</h3></div>
-        <div class="idx-body wide-body">
-          <p>手机上布局专门调过，通勤路上也能改卡。<span data-secure-only>还能装到桌面或手机主屏，断网也能打开。</span></p>
-          <p>整库备份成一个 zip，换设备时恢复；版本快照一起备份。</p>
-          <p>快捷键：<kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd> 撤销重做，世界书里 <kbd>/</kbd> 搜索、<kbd>Alt</kbd>+<kbd>N</kbd> 新建。</p>
+        <div class="idx-body">
+          <div class="wide-body">
+            <p>手机上布局专门调过，通勤路上也能改卡。<span data-secure-only>还能装到桌面或手机主屏，断网也能打开。</span></p>
+            <p>整库备份成一个 zip，换设备时恢复；版本快照一起备份。</p>
+            <p>快捷键：<kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd> 撤销重做，世界书里 <kbd>/</kbd> 搜索、<kbd>Alt</kbd>+<kbd>N</kbd> 新建。</p>
+          </div>
+          <div class="pair-shots">
+            <figure class="mini-shot">
+              <a class="shot-link" href="./screenshots/mobile.webp" target="_blank" rel="noopener" title="在新标签打开原图">
+                <img src="./screenshots/mobile.webp" alt="手机竖屏下的编辑器界面截图" width="390" height="844" loading="lazy" decoding="async" />
+              </a>
+              <figcaption><span>手机竖屏</span><a class="shot-raw" href="./screenshots/mobile.webp" target="_blank" rel="noopener">原图 ↗</a></figcaption>
+            </figure>
+          </div>
         </div>
       </article>
     </div>
@@ -576,11 +791,11 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: s
     </div>
     <div class="data-grid">
       <div class="rise">
-        <p class="statement">这台服务器<u>只负责把网页发给你</u>。你的卡和 key，都留在你自己的浏览器里。</p>
+        <p class="statement">网页版只是一堆<u>静态文件，没有后端和数据库</u>。你的卡和 key，都留在你自己的浏览器里。</p>
         <dl class="ledger">
           <div class="ledger-row">
             <dt>角色卡、世界书、正则、版本、小说项目</dt><dd>本机浏览器</dd>
-            <dd class="why">存在你这台设备、这个浏览器的本地数据库（IndexedDB）里。服务器没有数据库，也收不到这些内容。</dd>
+            <dd class="why">存在你这台设备、这个浏览器的本地数据库（IndexedDB）里。没有后端也没有数据库，不会上传这些内容。</dd>
           </div>
           <div class="ledger-row">
             <dt>AI 接口地址和 API key</dt><dd>本机浏览器</dd>
@@ -588,11 +803,11 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: s
           </div>
           <div class="ledger-row">
             <dt>调用 AI 的请求</dt><dd>浏览器 → 你填的接口</dd>
-            <dd class="why">从你的浏览器直接发到你填的接口地址，不经过这台服务器。费用走你自己的接口账户。</dd>
+            <dd class="why">从你的浏览器直接发到你填的接口地址，不经过任何中转后端。费用走你自己的接口账户。</dd>
           </div>
           <div class="ledger-row">
-            <dt>访问记录</dt><dd>不记录</dd>
-            <dd class="why">服务器没开访问日志，页面里也没有统计代码。</dd>
+            <dt>数据收集与统计</dt><dd>不收集</dd>
+            <dd class="why">页面本身不收集任何数据，也没有统计代码（托管平台的常规访问日志除外）。</dd>
           </div>
         </dl>
       </div>
@@ -605,7 +820,8 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: s
             <li><b>手机和电脑不会自动同步。</b>在一台设备上备份，到另一台用「从备份恢复」搬过去。</li>
             <li><b>iPhone / iPad 用 Safari 的话，</b>没添加到主屏幕的网站，7 天不打开可能被系统清掉本地数据，更要定期备份。</li>
             <li><b>美化卡预览会运行卡里自带的脚本，</b>有的卡还会从作者写的地址加载资源。来路不明的卡，先别开渲染预览。</li>
-            <li><b>AI 接口要允许网页直接调用。</b>如果提示网络错误或跨域（CORS）错误，多半是这个接口不支持浏览器直连，换个中转地址试试。</li>
+            <li><b>AI 接口要允许网页直接调用。</b>如果提示网络错误或跨域（CORS）错误，多半是这个接口不支持浏览器直连，可以换个支持跨域的中转地址。</li>
+            <li><b>遇到跨域（CORS）限制，可以改用桌面版。</b><a href="https://github.com/axxdllw/rolecard-editor/releases" target="_blank" rel="noopener">桌面版</a>走原生请求，没有浏览器的跨域限制。</li>
           </ul>
         </div>
       </div>
@@ -642,6 +858,11 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: s
       <strong>用 AI 功能</strong>
       <span>到「设置」里添加一个 AI 接口：选类型（OpenAI 兼容 / Anthropic 格式 / Gemini），填接口地址、API key 和模型名。小说转卡开始前会先估算请求数和 token，心里有数再跑。</span>
     </div>
+    <div class="ai-tip desk-tip rise">
+      <strong>桌面版</strong>
+      <span>Windows 有免安装版，macOS 有 dmg；走原生请求，不受浏览器跨域限制。首次打开系统可能提示来源未知，Windows 点「更多信息 → 仍要运行」即可。</span>
+      <a class="btn btn-line btn-sm-line" href="https://github.com/axxdllw/rolecard-editor/releases" target="_blank" rel="noopener">下载桌面版 <span class="arr">↗</span></a>
+    </div>
   </div>
 </section>
 
@@ -655,14 +876,17 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: s
     </div>
     <div class="fb">
       <div class="fb-cta rise">
-        <p>这是自己做的小工具，现在是试用版，最想听真实的使用感受：哪里找不到、哪里坏了、还缺什么、哪一步比你现在的做法更麻烦。好用的地方也欢迎说，免得改着改着改没了。</p>
-        <a class="btn btn-ink" href="./app/">打开编辑器 <span class="arr">→</span></a>
+        <p>项目还在持续打磨，欢迎到 GitHub 提 Issue 说说真实的使用感受：哪里找不到、哪里坏了、还缺什么、哪一步比你现在的做法更麻烦。好用的地方也欢迎留一句，免得改着改着改没了。</p>
+        <div class="cta" style="margin-bottom:0">
+          <a class="btn btn-ink" href="https://github.com/axxdllw/rolecard-editor/issues" target="_blank" rel="noopener">去 GitHub 提 Issue <span class="arr">↗</span></a>
+          <a class="btn btn-line" href="./app/">打开编辑器 <span class="arr">→</span></a>
+        </div>
       </div>
       <div class="idx rise">
         <div class="idx-head"><span class="label" style="font:600 11.5px/1 var(--mono);letter-spacing:.12em;color:var(--red)">反馈时附上这些，能快很多</span></div>
         <div class="idx-body">
           <ol>
-            <li>设备和浏览器，比如 iPhone Safari、Windows Chrome</li>
+            <li>设备和环境，比如 iPhone Safari、Windows Chrome 或桌面版</li>
             <li>做了哪几步，想要什么结果，实际发生了什么</li>
             <li>截图或录屏；有报错就把报错文字一起发</li>
             <li>出问题的卡（方便的话；有私人内容的就别发了）</li>
@@ -676,7 +900,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: s
 
 <footer>
   <div class="wrap">
-    <span>角色卡编辑器 · 试用版</span>
+    <span>角色卡编辑器 · <a class="foot-link" href="https://github.com/axxdllw/rolecard-editor" target="_blank" rel="noopener">GitHub 仓库</a></span>
     <span>不是 SillyTavern 官方项目 · 本页没有统计代码</span>
   </div>
 </footer>
@@ -743,6 +967,39 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: s
     })
   })
   render()
+
+  // ---------- 界面实拍切换 ----------
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.gal-tab'))
+  var panes = Array.prototype.slice.call(document.querySelectorAll('.shot-pane'))
+  var galIdx = document.getElementById('gal-idx')
+  var galLabel = document.getElementById('gal-label')
+  var curShot = 0
+  function showShot(i, focusTab) {
+    if (!tabs.length) return
+    curShot = (i + tabs.length) % tabs.length
+    tabs.forEach(function (t, idx) {
+      var on = idx === curShot
+      t.classList.toggle('is-on', on)
+      t.setAttribute('aria-selected', on ? 'true' : 'false')
+      t.setAttribute('tabindex', on ? '0' : '-1')
+    })
+    panes.forEach(function (p, idx) { p.classList.toggle('is-on', idx === curShot) })
+    if (galIdx) galIdx.textContent = (curShot < 9 ? '0' : '') + (curShot + 1) + ' / ' + (tabs.length < 10 ? '0' : '') + tabs.length
+    if (galLabel) galLabel.textContent = tabs[curShot].textContent.replace(/^\d+\s*/, '')
+    if (focusTab) tabs[curShot].focus()
+  }
+  tabs.forEach(function (t, idx) {
+    t.addEventListener('click', function () { showShot(idx, false) })
+    t.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowRight') { e.preventDefault(); showShot(idx + 1, true) }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); showShot(idx - 1, true) }
+    })
+  })
+  var btnPrev = document.getElementById('gal-prev')
+  var btnNext = document.getElementById('gal-next')
+  if (btnPrev) btnPrev.addEventListener('click', function () { showShot(curShot - 1, false) })
+  if (btnNext) btnNext.addEventListener('click', function () { showShot(curShot + 1, false) })
+  showShot(0, false)
 
   // ---------- 进场动画 ----------
   var items = Array.prototype.filter.call(document.querySelectorAll('.rise'), function (el) { return !el.closest('.hero') })
