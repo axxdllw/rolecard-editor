@@ -1,92 +1,18 @@
-import { useMemo, useState } from 'react'
-import { toast } from 'sonner'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  applyReplacements,
-  collectTextSlots,
-  compileQuery,
-  detectNameCandidates,
-  findInSlots,
-  replacementFor,
-  type SearchHit,
-  type SearchQuery,
-  type TextSlot,
-} from '@/core/search/search'
-import { updateCard, useCardDoc } from '@/features/editor/cardDoc'
-import { snapshotBeforeChange } from '@/features/originals/autoSnapshot'
+import { collectTextSlots, compileQuery, findInSlots, replacementFor, type SearchQuery, type TextSlot } from '@/core/search/search'
+import { useCardDoc } from '@/features/editor/cardDoc'
 import { cn } from '@/lib/utils'
+import { useApply } from './applyPlan'
+import { HitList, type PlannedHit } from './HitList'
+import { RenameTab } from './RenameTab'
 
 const GROUPS: TextSlot['group'][] = ['角色字段', '开场白', '世界书', '正则', '扩展']
 const MAX_HITS = 3000
-
-interface PlannedHit {
-  hit: SearchHit
-  replacement: string
-}
-
-function HitList({ hits, selected, onToggle }: { hits: PlannedHit[]; selected: Set<string>; onToggle: (ids: string[], on: boolean) => void }) {
-  const grouped = useMemo(() => {
-    const map = new Map<string, PlannedHit[]>()
-    for (const h of hits) map.set(h.hit.group, [...(map.get(h.hit.group) ?? []), h])
-    return [...map.entries()]
-  }, [hits])
-
-  return (
-    <div className="flex flex-col gap-3">
-      {grouped.map(([group, list]) => {
-        const ids = list.map((h) => h.hit.id)
-        const allOn = ids.every((id) => selected.has(id))
-        return (
-          <div key={group} className="rounded-lg border">
-            <label className="flex items-center gap-2 border-b bg-muted/40 px-3 py-1.5 text-sm font-medium">
-              <Checkbox checked={allOn} onCheckedChange={(v) => onToggle(ids, v === true)} />
-              {group}
-              <span className="text-xs font-normal text-muted-foreground">{list.length} 处</span>
-            </label>
-            <div className="max-h-72 overflow-y-auto">
-              {list.map(({ hit, replacement }) => (
-                <label key={hit.id} className="flex cursor-pointer items-start gap-2 border-b px-3 py-1.5 text-xs last:border-b-0 hover:bg-muted/40" style={{ contentVisibility: 'auto' }}>
-                  <Checkbox className="mt-0.5" checked={selected.has(hit.id)} onCheckedChange={(v) => onToggle([hit.id], v === true)} />
-                  <span className="flex min-w-0 flex-col gap-0.5">
-                    <span className="text-muted-foreground">{hit.label}</span>
-                    <span className="break-all">
-                      <span className="text-muted-foreground">…{hit.before}</span>
-                      <del className="bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300">{hit.match}</del>
-                      <ins className="bg-emerald-100 text-emerald-800 no-underline dark:bg-emerald-950 dark:text-emerald-300">{replacement}</ins>
-                      <span className="text-muted-foreground">{hit.after}…</span>
-                    </span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function useApply(onDone: () => void) {
-  return (planned: PlannedHit[], selected: Set<string>, extra?: { newName?: string }, label = '批量替换') => {
-    const chosen = planned.filter((p) => selected.has(p.hit.id))
-    let count = 0
-    snapshotBeforeChange(`${label}之前`)
-    updateCard(
-      (d) => {
-        count = applyReplacements(d.card, chosen.map((p) => ({ hit: p.hit, text: p.replacement })))
-        if (extra?.newName) d.card.data.name = extra.newName
-      },
-      { label },
-    )
-    toast.success(`已替换 ${count} 处`, { description: '可以按 Ctrl+Z 撤销整批替换' })
-    onDone()
-  }
-}
 
 function FindReplaceTab({ onDone }: { onDone: () => void }) {
   const card = useCardDoc((s) => s.doc?.card)
@@ -174,119 +100,6 @@ function FindReplaceTab({ onDone }: { onDone: () => void }) {
           <DialogFooter>
             <Button disabled={selected.size === 0} onClick={() => apply(planned, selected, undefined, `替换「${find}」`)}>
               替换选中的 {selected.size} 处
-            </Button>
-          </DialogFooter>
-        </>
-      )}
-    </div>
-  )
-}
-
-interface CandidateState {
-  name: string
-  source: string
-  enabled: boolean
-  target: string
-}
-
-function RenameTab({ onDone }: { onDone: () => void }) {
-  const card = useCardDoc((s) => s.doc?.card)
-  const initial = useMemo(() => (card ? detectNameCandidates(card) : []), [card])
-  const [candidates, setCandidates] = useState<CandidateState[]>(() => initial.map((c, i) => ({ ...c, enabled: i === 0, target: '' })))
-  const [mainName, setMainName] = useState('')
-  const [extra, setExtra] = useState('')
-  const [planned, setPlanned] = useState<PlannedHit[] | null>(null)
-  const [selected, setSelected] = useState<Set<string>>(new Set())
-  const apply = useApply(onDone)
-
-  const scan = () => {
-    if (!card) return
-    const list = [...candidates]
-    if (extra.trim()) list.push({ name: extra.trim(), source: '手动添加', enabled: true, target: mainName })
-    const active = list.filter((c) => c.enabled && c.name)
-    const slots = collectTextSlots(card).filter((s) => s.path.join('.') !== 'data.name')
-    const plan: PlannedHit[] = []
-    const taken = new Set<string>()
-    // 长的名字先匹配，避免“弗洛洛姐姐”里的“弗洛洛”被重复计算
-    for (const c of [...active].sort((a, b) => b.name.length - a.name.length)) {
-      const regex = compileQuery({ text: c.name, useRegex: false, caseSensitive: true })
-      if (typeof regex === 'string') continue
-      for (const hit of findInSlots(slots, regex, `${c.name}|`)) {
-        const spanKey = `${hit.slotIndex}`
-        const overlaps = [...taken].some((t) => {
-          const [slot, s, e] = t.split(':').map(Number)
-          return String(slot) === spanKey && hit.start < e && hit.end > s
-        })
-        if (overlaps) continue
-        taken.add(`${hit.slotIndex}:${hit.start}:${hit.end}`)
-        plan.push({ hit, replacement: c.target || mainName || c.name })
-      }
-    }
-    plan.sort((a, b) => a.hit.slotIndex - b.hit.slotIndex || a.hit.start - b.hit.start)
-    setPlanned(plan)
-    setSelected(new Set(plan.map((p) => p.hit.id)))
-  }
-
-  const update = (i: number, patch: Partial<CandidateState>) => setCandidates((prev) => prev.map((c, j) => (j === i ? { ...c, ...patch } : c)))
-
-  return (
-    <div className="flex min-h-0 flex-col gap-3">
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="rename-main">新的角色名</Label>
-        <Input id="rename-main" value={mainName} placeholder="会写进卡片的 name 字段" onChange={(e) => setMainName(e.target.value)} />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Label>要替换的旧名字（自动从角色名和描述里识别）</Label>
-        {candidates.map((c, i) => (
-          <div key={c.name} className="flex flex-wrap items-center gap-2">
-            <Checkbox checked={c.enabled} onCheckedChange={(v) => update(i, { enabled: v === true })} />
-            <span className="min-w-20 font-medium">{c.name}</span>
-            <span className="text-xs text-muted-foreground">{c.source}</span>
-            <span className="text-muted-foreground">→</span>
-            <Input
-              className="h-7 w-44"
-              value={c.target}
-              placeholder={mainName || '新名字'}
-              disabled={!c.enabled}
-              onChange={(e) => update(i, { target: e.target.value })}
-            />
-            <Button size="xs" variant="ghost" disabled={!c.enabled} onClick={() => update(i, { target: '{{char}}' })}>
-              用 {'{{char}}'}
-            </Button>
-          </div>
-        ))}
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">其他叫法：</span>
-          <Input className="h-7 w-44" value={extra} placeholder="例如昵称、简称" onChange={(e) => setExtra(e.target.value)} />
-        </div>
-        <p className="text-xs text-muted-foreground">
-          替换成 {'{{char}}'} 后，以后再改名只需要改角色名。长名字优先匹配，例如“弗洛洛姐姐”不会被拆开替换。
-        </p>
-      </div>
-      <Button className="self-start" onClick={scan} disabled={!mainName.trim() && !candidates.some((c) => c.enabled && c.target)}>
-        扫描全卡
-      </Button>
-      {planned && (
-        <>
-          <p className="text-sm text-muted-foreground">
-            找到 {planned.length} 处，已选 {selected.size} 处。{mainName.trim() && `角色名会改为「${mainName.trim()}」。`}
-          </p>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <HitList
-              hits={planned}
-              selected={selected}
-              onToggle={(ids, on) =>
-                setSelected((prev) => {
-                  const next = new Set(prev)
-                  ids.forEach((id) => (on ? next.add(id) : next.delete(id)))
-                  return next
-                })
-              }
-            />
-          </div>
-          <DialogFooter>
-            <Button onClick={() => apply(planned, selected, { newName: mainName.trim() || undefined }, '改名')}>
-              替换选中的 {selected.size} 处{mainName.trim() ? '并改名' : ''}
             </Button>
           </DialogFooter>
         </>
