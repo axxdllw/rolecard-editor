@@ -32,6 +32,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { JsonObject, Lorebook } from '@/core/card/types'
 import type { DepLocation } from '@/core/deps/deps'
+import type { SlotTarget } from '@/core/search/fullText'
 import { countScripts } from '@/core/tavern-helper/scripts'
 import { db, type CardRecord } from '@/db/db'
 import { DependencySheet, DependencySummary } from '@/features/deps/DependencyPanel'
@@ -105,6 +106,14 @@ function useUndoShortcuts() {
   }, [])
 }
 
+/** 卡库全文搜索带过来的落点：世界书条目或正则 */
+function initialFocus(state: unknown): { loc: DepLocation; nonce: number } | null {
+  const jump = (state as { jump?: SlotTarget } | null)?.jump
+  if (jump?.entry !== undefined) return { loc: { type: 'entry', index: jump.entry, title: '', enabled: true }, nonce: 1 }
+  if (jump?.regex !== undefined) return { loc: { type: 'regex', index: jump.regex, name: '', enabled: true }, nonce: 1 }
+  return null
+}
+
 function Editor({ record }: { record: CardRecord }) {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
@@ -118,7 +127,14 @@ function Editor({ record }: { record: CardRecord }) {
   const [depsOpen, setDepsOpen] = useState(false)
   const [originalOpen, setOriginalOpen] = useState(false)
   // 依赖体检跳到世界书条目或正则时，交给对应面板去选中
-  const [focus, setFocus] = useState<{ loc: DepLocation; nonce: number } | null>(null)
+  const [focus, setFocus] = useState<{ loc: DepLocation; nonce: number } | null>(() => initialFocus(location.state))
+  // 从卡库全文搜索点进来的，滚到命中的字段
+  useEffect(() => {
+    const anchor = (location.state as { jump?: SlotTarget } | null)?.jump?.anchor
+    if (anchor) revealAnchor(anchor)
+    // 只在打开时跳一次
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const card = useCardDoc((s) => s.doc?.card)
   const depReport = useDependencyReport(card)
   const originalState = useOriginalState(record.id, card, avatar)

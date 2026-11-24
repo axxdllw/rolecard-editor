@@ -11,6 +11,7 @@ import {
   PlusIcon,
   SearchIcon,
   TagIcon,
+  TextSearchIcon,
   Trash2Icon,
   UploadIcon,
   XIcon,
@@ -33,6 +34,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { slotTarget, type SlotMatch } from '@/core/search/fullText'
 import { db, type CardRecord } from '@/db/db'
 import { useLive } from '@/db/useLive'
 import { downloadBlob, pickFiles } from '@/lib/files'
@@ -50,9 +52,12 @@ import {
   exportCardPng,
   exportCardsZip,
 } from '@/services/cards'
+import { FullTextResults } from './FullTextResults'
 import { importFiles } from './importFlow'
 import { BatchTagDialog, MetaDialog } from './MetaDialog'
 import { NewCardDialog } from './NewCardDialog'
+import { setLibrarySearch, useLibrarySearch } from './searchStore'
+import { useFullTextSearch } from './useFullTextSearch'
 
 const BACKUP_REMIND_MS = 7 * 24 * 3600 * 1000
 
@@ -93,7 +98,9 @@ export default function LibraryPage() {
   const [hideBackupTip, setHideBackupTip] = useState(false)
   const [now] = useState(() => Date.now())
   const cards = useLive(() => db.cards.toArray(), [])
-  const [query, setQuery] = useState('')
+  const query = useLibrarySearch((s) => s.query)
+  const fullText = useLibrarySearch((s) => s.fullText)
+  const setQuery = (value: string) => setLibrarySearch({ query: value })
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -123,7 +130,7 @@ export default function LibraryPage() {
     const q = query.trim().toLowerCase()
     const list = cards.filter((c) => {
       if (tagFilter && !c.localTags.includes(tagFilter)) return false
-      if (!q) return true
+      if (!q || fullText) return true
       const haystack = [c.name, c.card.data.creator, c.note, ...c.localTags, ...(c.card.data.tags ?? [])]
         .join('\n')
         .toLowerCase()
@@ -134,7 +141,25 @@ export default function LibraryPage() {
       return b[librarySort] - a[librarySort]
     })
     return list
-  }, [cards, query, tagFilter, librarySort])
+  }, [cards, query, tagFilter, librarySort, fullText])
+
+  const fullTextOnly = useMemo(() => (tagFilter ? visible.map((c) => c.id) : undefined), [tagFilter, visible])
+  const fullTextState = useFullTextSearch(cards, query, fullText, fullTextOnly)
+  const recordsById = useMemo(() => new Map((cards ?? []).map((c) => [c.id, c])), [cards])
+
+  const toggleFullText = (on: boolean) => {
+    setLibrarySearch({ fullText: on })
+    if (on) {
+      setSelecting(false)
+      setSelected(new Set())
+    }
+  }
+
+  const openHit = (cardId: string, slot: SlotMatch | null) => {
+    if (!slot) return navigate(`/card/${cardId}`)
+    const target = slotTarget(slot.path)
+    navigate(`/card/${cardId}?tab=${target.tab}`, { state: { jump: target } })
+  }
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -246,7 +271,26 @@ export default function LibraryPage() {
         </h1>
         <div className="relative min-w-40 flex-1">
           <SearchIcon className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input className="pl-8" placeholder="搜索名字、标签、作者、备注" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <Input
+            type="search"
+            enterKeyHint="search"
+            className="pr-20 pl-8"
+            placeholder={fullText ? '搜卡片内容：描述、开场白、世界书…' : '搜索名字、标签、作者、备注'}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label={fullText ? '搜索卡片内容' : '搜索卡片'}
+          />
+          <Button
+            type="button"
+            size="xs"
+            variant={fullText ? 'default' : 'ghost'}
+            className="absolute top-1/2 right-1 -translate-y-1/2"
+            aria-pressed={fullText}
+            title="在所有卡的描述、开场白、示例对话、世界书和正则里搜索"
+            onClick={() => toggleFullText(!fullText)}
+          >
+            <TextSearchIcon /> 全文
+          </Button>
         </div>
         <Select value={librarySort} onValueChange={(v) => set({ librarySort: v as LibrarySort })}>
           <SelectTrigger className="w-28">
@@ -273,7 +317,11 @@ export default function LibraryPage() {
             <ListIcon />
           </ToggleGroupItem>
         </ToggleGroup>
-        <Button variant={selecting ? 'secondary' : 'outline'} onClick={() => (selecting ? exitSelecting() : setSelecting(true))}>
+        <Button
+          variant={selecting ? 'secondary' : 'outline'}
+          disabled={fullText}
+          onClick={() => (selecting ? exitSelecting() : setSelecting(true))}
+        >
           <CheckSquareIcon /> {selecting ? '退出多选' : '多选'}
         </Button>
         <Button variant="outline" onClick={async () => doImport(await pickFiles('.png,.json,.charx', true))}>
@@ -354,11 +402,34 @@ export default function LibraryPage() {
         </div>
       )}
 
-      {cards && cards.length > 0 && visible.length === 0 && (
+      {!fullText && query.trim() !== '' && cards && cards.length > 0 && (
+        <button
+          type="button"
+          onClick={() => toggleFullText(true)}
+          className="flex items-center gap-2 self-start rounded-lg border border-dashed px-3 py-2 text-left text-sm text-muted-foreground hover:border-solid hover:text-foreground"
+        >
+          <TextSearchIcon className="size-4 shrink-0" />
+          <span className="min-w-0 break-all">在所有卡的内容（描述、开场白、世界书、正则……）里搜「{query.trim()}」</span>
+        </button>
+      )}
+
+      {!fullText && cards && cards.length > 0 && visible.length === 0 && (
         <p className="py-10 text-center text-sm text-muted-foreground">没有符合条件的卡</p>
       )}
 
-      {libraryView === 'grid' ? (
+      {fullText ? (
+        cards &&
+        cards.length > 0 && (
+          <FullTextResults
+            results={fullTextState.results}
+            searched={fullTextState.searched}
+            pending={fullTextState.pending}
+            error={fullTextState.error}
+            records={recordsById}
+            onOpen={openHit}
+          />
+        )
+      ) : libraryView === 'grid' ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {visible.map((record) => (
             <div
