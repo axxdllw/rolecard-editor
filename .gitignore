@@ -12,6 +12,14 @@ dist
 dist-tauri
 dist-ssr
 *.local
+.env*
+!.env.example
+
+# 根目录下临时放的卡、图片和备份，避免误提交
+/*.png
+/*.webp
+/*.zip
+/*.charx
 
 # Editor directories and files
 .vscode/*
