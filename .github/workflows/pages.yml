@@ -1,0 +1,65 @@
+# 部署到 GitHub Pages：介绍页（site/）放在根目录，编辑器放在 /app/，和 scripts/deploy.sh 的目录结构一致。
+# 推到 main 时自动部署，也可以在 Actions 页面手动运行。
+# 免费账号的私有仓库用不了 Pages，所以仓库是私有时直接跳过；fork 后要先在 Settings → Pages 把 Source 设为 GitHub Actions。
+name: 部署介绍页和在线版
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'site/**'
+      - 'public/**'
+      - 'index.html'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: 组装站点
+        run: |
+          mkdir -p _site/app
+          cp -r site/. _site/
+          cp -r dist/. _site/app/
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
