@@ -30,7 +30,7 @@ export interface ScanSettings {
   useGroupScoring: boolean
 }
 
-/** 用户本机酒馆的设置 */
+/** 默认扫描设置（和酒馆常用设置一致） */
 export const DEFAULT_SCAN_SETTINGS: ScanSettings = {
   scanDepth: 2,
   recursive: true,

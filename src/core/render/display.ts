@@ -77,7 +77,7 @@ export interface PrepareOptions {
 
 /**
  * 显示阶段、交给 Markdown 转换之前的处理：显示正则 → 引号。
- * 按酒馆助手推荐的酒馆设置渲染（也是你本机酒馆的设置）：
+ * 按酒馆助手推荐的酒馆设置渲染：
  * 不自动修复 Markdown（auto_fix_generated_markdown 关），不转义标签（encode_tags 关）。
  */
 export function prepareForMarkdown(text: string, opts: PrepareOptions): string {
