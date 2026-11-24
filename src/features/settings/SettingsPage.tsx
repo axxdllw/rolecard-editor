@@ -141,7 +141,7 @@ export default function SettingsPage() {
 
       <Panel title="关于">
         <p className="text-sm text-muted-foreground">
-          角色卡编辑器：管理和编辑 SillyTavern 角色卡。导入导出保持数据无损，导出的 PNG 同时包含 V2 和 V3 数据。token 数用 o200k 分词器估算，仅供参考。
+          角色卡编辑器：管理和编辑 SillyTavern 角色卡。导入导出保持数据无损，导出的 PNG 新旧版酒馆都能导入。token 数用 o200k 分词器估算，仅供参考。
         </p>
       </Panel>
     </div>
