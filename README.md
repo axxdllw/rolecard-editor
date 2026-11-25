@@ -4,6 +4,16 @@
 
 [在线使用（介绍页）](https://axxdllw.github.io/rolecard-editor/) · [直接打开编辑器](https://axxdllw.github.io/rolecard-editor/app/) · [下载桌面版](https://github.com/axxdllw/rolecard-editor/releases) · [反馈问题](https://github.com/axxdllw/rolecard-editor/issues)
 
+**它能做什么：**
+
+- 📇 **卡库管理**：PNG / JSON / CharX 导入导出，V2、V3 数据同时写入，不认识的字段原样保留
+- ✏️ **角色编辑**：所有字段一页编辑，带宏高亮、token 估算、开场白排序与聊天预览
+- 📚 **世界书与触发模拟**：写一段模拟对话，按酒馆规则算出每轮触发哪些条目以及原因
+- 🧩 **正则与酒馆助手脚本**：在线编辑并实时测试，美化卡、MVU 变量可直接渲染预览
+- 🤖 **AI 辅助**：用自己的 API key 润色字段、一句话生成整卡、批量生成世界书条目、侧栏助手改卡
+- 📖 **小说转卡**：导入 EPUB / TXT / MOBI 等电子书，AI 抽取人物和设定，生成角色卡与世界书
+- 🔁 **改名与版本对比**：全卡批量改名、查找替换，随时和原件或历史版本对比、还原
+
 ## 让 AI 助手帮你装
 
 把下面整段复制给你的 AI 编程助手（比如 Claude Code、Cursor、Codex、Gemini CLI）：
