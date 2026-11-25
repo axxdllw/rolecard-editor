@@ -1,6 +1,7 @@
 # 角色卡编辑器
 
-给 SillyTavern（酒馆）玩家用的角色卡编辑器：所有字段一页看完，世界书和触发规则能直接模拟测试，导入导出不丢数据。纯前端网页运行，也提供 Windows / macOS 桌面版，数据只存在你自己的设备上。
+给 SillyTavern（酒馆）玩家用的角色卡编辑器：可以便捷修改角色各项数据和世界书，世界书和触发规则、MVU变量、正则脚本能直接模拟测试，可以实时渲染前端卡，方便修改美化，导入导出格式兼容酒馆各版本。
+纯前端网页运行，**所有数据（角色卡、api密钥）都只存在你自己的设备上**，也提供 Windows / macOS 桌面版方便点击即用。
 
 [在线使用（介绍页）](https://axxdllw.github.io/rolecard-editor/) · [直接打开编辑器](https://axxdllw.github.io/rolecard-editor/app/) · [下载桌面版](https://github.com/axxdllw/rolecard-editor/releases) · [反馈问题](https://github.com/axxdllw/rolecard-editor/issues)
 
@@ -16,7 +17,7 @@
 
 ## 让 AI 助手帮你装
 
-把下面整段复制给你的 AI 编程助手（比如 Claude Code、Cursor、Codex、Gemini CLI）：
+如果你想在本地部署运行，或者二次开发，把下面整段复制给你的 AI 编程助手（比如 Claude Code、Cursor、Codex、Gemini CLI）：
 
 ```text
 帮我安装或打开「角色卡编辑器」（https://github.com/axxdllw/rolecard-editor ）。
