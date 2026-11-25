@@ -189,3 +189,7 @@ HTTPS 证书由服务器上的 acme.sh 申请（Let's Encrypt IP 证书，shortl
 - `src/core/` 只能用浏览器和 Node 都有的 API，由 `tsconfig.test.json`（不含 DOM 类型）保证。
 
 不是 SillyTavern 官方项目。
+
+## 许可
+
+[MIT](LICENSE)

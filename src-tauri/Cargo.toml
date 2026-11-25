@@ -2,6 +2,7 @@
 name = "rolecard-editor"
 version = "0.1.0"
 description = "角色卡编辑器桌面版"
+license = "MIT"
 edition = "2021"
 
 [lib]
